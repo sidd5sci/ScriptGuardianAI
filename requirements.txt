@@ -1,0 +1,13 @@
+transformers>=4.41.0
+accelerate>=0.30.0
+sentence-transformers>=2.6.1
+chromadb>=0.4.24
+rich>=13.7.0
+tqdm>=4.66.4
+sarif-om>=1.0.4
+pandas
+peft
+datasets
+langchain
+langchain_community
+chromadb

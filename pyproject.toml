@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=67", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "scaningbee"
+version = "0.1.0"
+description = "Local script-security scanner"
+requires-python = ">=3.10"
+
+# Add runtime deps if you like
+dependencies = [
+  "fastapi",
+  "uvicorn",
+  "langchain-ollama",
+  "langchain-chroma",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]

@@ -1,0 +1,9 @@
+Metadata-Version: 2.4
+Name: scaningbee
+Version: 0.1.0
+Summary: Local script-security scanner
+Requires-Python: >=3.10
+Requires-Dist: fastapi
+Requires-Dist: uvicorn
+Requires-Dist: langchain-ollama
+Requires-Dist: langchain-chroma

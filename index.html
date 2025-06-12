@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ScanBee – Script Auditor</title>
+  <script>
+    async function sendRequest() {
+      const output = document.getElementById("result");
+      output.textContent = "⏳ scanning…";
+
+      const fileInput   = document.getElementById("scriptFile");
+      const textArea    = document.getElementById("scriptText");
+      const hasFile     = fileInput.files.length > 0;
+
+      let body;
+      let headers = {};
+      if (hasFile) {
+        const form = new FormData();
+        form.append("file", fileInput.files[0]);
+        body = form;
+      } else if (textArea.value.trim()) {
+        body = JSON.stringify({ script: textArea.value });
+        headers["Content-Type"] = "application/json";
+      } else {
+        output.textContent = "⚠️ Please paste code or choose a file.";
+        return;
+      }
+
+      try {
+        const res = await fetch("http://127.0.0.1:8000/analyze", {
+          method: "POST",
+          headers,
+          body,
+        });
+
+        if (!res.ok) {
+          const msg = await res.text();
+          output.textContent = `❌ ${res.status} – ${msg}`;
+          return;
+        }
+
+        const json = await res.json();
+        output.textContent = JSON.stringify(json, null, 2);
+      } catch (err) {
+        output.textContent = "❌ Network / server error: " + err;
+      }
+    }
+
+    function clearText() {
+      document.getElementById("scriptText").value = "";
+      document.getElementById("scriptFile").value = "";
+      document.getElementById("result").textContent = "";
+    }
+  </script>
+  <style>
+    body{font-family:Arial,Helvetica,sans-serif;background:#f7f7fa;margin:0;padding:2rem;color:#333}
+    h1{margin-top:0;font-size:1.5rem}
+    textarea{width:100%;min-height:160px;padding:.5rem;font-family:monospace;border:1px solid #ccc;border-radius:4px}
+    .panel{max-width:720px;margin:auto;background:#fff;padding:1.5rem;border-radius:8px;box-shadow:0 2px 6px rgba(0,0,0,.05)}
+    .btn{display:inline-block;margin-top:1rem;padding:.5rem 1rem;border:none;border-radius:4px;background:#007bff;color:#fff;font-size:.9rem;cursor:pointer}
+    .btn:disabled{background:#9ab}
+    #result{white-space:pre-wrap;background:#111;color:#0f0;padding:1rem;border-radius:4px;margin-top:1rem;max-height:360px;overflow:auto;font-size:.85rem}
+    label{font-weight:bold;margin-top:1rem;display:block}
+  </style>
+</head>
+<body>
+  <div class="panel">
+    <h1>🔍 ScanBee – Script Security Auditor</h1>
+    <label for="scriptText">Paste script here (optional)</label>
+    <textarea id="scriptText" placeholder="# PowerShell or Groovy code…"></textarea>
+
+    <label>or upload a script file</label>
+    <input type="file" id="scriptFile" accept=".ps1,.groovy,.txt" />
+
+    <div>
+      <button class="btn" onclick="sendRequest()">Analyze</button>
+      <button class="btn" style="background:#6c757d" onclick="clearText()">Clear</button>
+    </div>
+
+    <pre id="result"></pre>
+  </div>
+</body>
+</html>
