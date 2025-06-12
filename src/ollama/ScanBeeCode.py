@@ -83,4 +83,4 @@ if __name__ == "__main__":
     print("===========OUTPUT================\n\n")
     print(json.dumps(result, indent=2))
 
-    bee.analyse_file(file_path, prompt_path)
+    result2 = bee.analyse_file(file_path, prompt_path)
