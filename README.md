@@ -38,6 +38,8 @@ pip install -e .
 ## start ollama 
 ```bash
 ollama pull nomic-embed-text
+ollama pull codellama:latest
+ollama pull llama3:latest
 ollama serve
 ```
 
@@ -81,7 +83,9 @@ pip install -e .
 python -m Ollama.scanBee2 tests/test.ps1
 
 python src/ollama/DataEmbed.py /Users/siddhartha.singh/scaningBee/resources
-python src/ollama/ScanBee.py /Users/siddhartha.singh/scaningBee/tests/test.ps1
+python src/ollama/ScanBee.py /Users/siddhartha.singh/scaningBee/tests/test.ps1 /Users/siddhartha.singh/scaningBee/src/ollama/prompts/prompt_3.md
+
+python src/ollama/ScanBeeCode.py /Users/siddhartha.singh/scaningBee/tests/test.ps1 /Users/siddhartha.singh/scaningBee/src/ollama/prompts/prompt_3.md
 ```
 ## run server
 <!-- uvicorn src.api_scanbee:app --reload -->

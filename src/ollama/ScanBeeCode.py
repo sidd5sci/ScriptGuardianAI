@@ -11,7 +11,6 @@ from langchain.prompts import ChatPromptTemplate
 
 # Configurations
 CHROMA_DIR   = os.getenv("SECSCAN_DB", "db")
-EMB_MODEL    = os.getenv("SECSCAN_EMB_MODEL", "nomic-embed-text")
 # Use a code-specialized model like "codellama:latest" for better script analysis
 LLM_MODEL    = os.getenv("SECSCAN_MODEL", "codellama:latest")
 K_SHOT       = int(os.getenv("SECSCAN_KSHOT", "3"))
@@ -80,5 +79,8 @@ if __name__ == "__main__":
 
     bee = ScanBee()
     result = bee.analyse_file(file_path, prompt_path)
+
     print("===========OUTPUT================\n\n")
     print(json.dumps(result, indent=2))
+
+    bee.analyse_file(file_path, prompt_path)
