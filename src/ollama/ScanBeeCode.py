@@ -25,6 +25,7 @@ class ScanBee:
         self.llm        = ChatOllama(model=llm_model, temperature=temperature)
         self.parser     = JsonOutputParser()
         self.prompt     = None
+        self.prompt_file_path =  '/Users/siddhartha.singh/scaningBee/src/ollama/prompts/'
 
     def _build_messages(self, code: str) -> List[dict]:
         safe_code = self.escape_braces(code)
@@ -49,6 +50,7 @@ class ScanBee:
     def analyse_file(self, path: Path, prompt_path: Path) -> dict:
         code = path.read_text(encoding="utf-8", errors="ignore")
         code = self.strip_commented_lines(code)
+        prompt_path = Path(self.prompt_file_path) / prompt_path
         self.prompt = prompt_path.read_text(encoding="utf-8", errors="ignore")
         return self.analyse(code)
 
@@ -68,19 +70,20 @@ class ScanBee:
         return "\n".join(line for line in code.splitlines() if not line.strip().startswith("#"))
 
 if __name__ == "__main__":
-    if len(sys.argv) < 3:
+    if len(sys.argv) < 2:
         sys.exit("Usage: python scanBee.py <script-file> <prompt-file>")
 
     file_path = Path(sys.argv[1])
-    prompt_path = Path(sys.argv[2])
+    # prompt_path = Path(sys.argv[2])
 
     if not file_path.is_file():
         sys.exit(f"ERR: {file_path} not found or not a file")
 
     bee = ScanBee()
-    result = bee.analyse_file(file_path, prompt_path)
+    result = bee.analyse_file(file_path, "prompt_6.md")
 
     print("===========OUTPUT================\n\n")
     print(json.dumps(result, indent=2))
 
-    result2 = bee.analyse_file(file_path, prompt_path)
+    result2 = bee.analyse_file(file_path, "prompt_4.md")
+    print(json.dumps(result, indent=2))
