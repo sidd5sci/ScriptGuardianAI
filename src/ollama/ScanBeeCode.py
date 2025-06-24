@@ -1,4 +1,4 @@
-# scanBee.py (updated with code-focused model)
+# scanBee.py (updated to use two-stage analysis)
 from __future__ import annotations
 import os, sys, json, re
 from pathlib import Path
@@ -25,21 +25,21 @@ class ScanBee:
         self.llm        = ChatOllama(model=llm_model, temperature=temperature)
         self.parser     = JsonOutputParser()
         self.prompt     = None
-        self.prompt_file_path =  '/Users/siddhartha.singh/scaningBee/src/ollama/prompts/'
+        self.prompt_file_path = '/Users/siddhartha.singh/scaningBee/src/ollama/prompts/'
 
-    def _build_messages(self, code: str) -> List[dict]:
-        safe_code = self.escape_braces(code)
+    def _build_messages(self, input_str: str) -> List[dict]:
+        safe_input = self.escape_braces(input_str)
         return [
             {"role": "system", "content": self.prompt},
-            {"role": "user", "content": f"<BEGIN CODE>\n{safe_code}\n<END CODE>"}
+            {"role": "user", "content": f"<BEGIN INPUT>\n{safe_input}\n<END INPUT>"}
         ]
 
     def _to_chat_messages(self, lst):
         role_map = {"system": SystemMessage, "user": HumanMessage, "assistant": AIMessage}
         return [role_map[m["role"]](content=m["content"]) for m in lst]
 
-    def analyse(self, code: str) -> dict:
-        raw_messages = self._build_messages(code)
+    def analyse(self, input_str: str) -> dict:
+        raw_messages = self._build_messages(input_str)
         chat_messages = self._to_chat_messages(raw_messages)
         response = self.llm.invoke(chat_messages)
         try:
@@ -47,12 +47,18 @@ class ScanBee:
         except json.JSONDecodeError:
             return self._extract_json(response.content) or {"error": "LLM returned invalid JSON", "raw": response.content}
 
-    def analyse_file(self, path: Path, prompt_path: Path) -> dict:
+    def analyse_file(self, path: Path, prompt_path: str) -> dict:
         code = path.read_text(encoding="utf-8", errors="ignore")
         code = self.strip_commented_lines(code)
         prompt_path = Path(self.prompt_file_path) / prompt_path
         self.prompt = prompt_path.read_text(encoding="utf-8", errors="ignore")
         return self.analyse(code)
+
+    def analyse_from_json(self, json_obj: dict, prompt_path: str) -> dict:
+        prompt_path = Path(self.prompt_file_path) / prompt_path
+        self.prompt = prompt_path.read_text(encoding="utf-8", errors="ignore")
+        input_str = json.dumps(json_obj, indent=2)
+        return self.analyse(input_str)
 
     def escape_braces(self, text: str) -> str:
         return re.sub(r"([{}])", r"{{\\1}}", text)
@@ -71,19 +77,26 @@ class ScanBee:
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
-        sys.exit("Usage: python scanBee.py <script-file> <prompt-file>")
+        sys.exit("Usage: python scanBee.py <script-file>")
 
     file_path = Path(sys.argv[1])
-    # prompt_path = Path(sys.argv[2])
 
     if not file_path.is_file():
         sys.exit(f"ERR: {file_path} not found or not a file")
 
     bee = ScanBee()
-    result = bee.analyse_file(file_path, "prompt_6.md")
 
-    print("===========OUTPUT================\n\n")
-    print(json.dumps(result, indent=2))
+    # First pass: detect sensitive vaiables JSON
+    print("\n===========STAGE 1: Detect sensitive================\n")
+    sensitive_variable = bee.analyse_file(file_path, "variable/prompt_1.md")
+    print(json.dumps(sensitive_variable, indent=2))
 
-    result2 = bee.analyse_file(file_path, "prompt_4.md")
-    print(json.dumps(result, indent=2))
+    # Second pass: generate summary JSON
+    print("\n===========STAGE 2: Static Summary================\n")
+    static_summary = bee.analyse_file(file_path, "summary/prompt_6.md")
+    print(json.dumps(static_summary, indent=2))
+
+    # Third pass: feed JSON into a vulnerability prompt
+    print("\n===========STAGE 3: Vulnerability Detection================\n")
+    vuln_analysis = bee.analyse_from_json(static_summary, "analyse/prompt_7.md")
+    print(json.dumps(vuln_analysis, indent=2))

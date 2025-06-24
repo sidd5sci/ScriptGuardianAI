@@ -86,6 +86,8 @@ python src/ollama/DataEmbed.py /Users/siddhartha.singh/scaningBee/resources
 python src/ollama/ScanBee.py /Users/siddhartha.singh/scaningBee/tests/test.ps1 /Users/siddhartha.singh/scaningBee/src/ollama/prompts/prompt_3.md
 
 python src/ollama/ScanBeeCode.py /Users/siddhartha.singh/scaningBee/tests/test.ps1 /Users/siddhartha.singh/scaningBee/src/ollama/prompts/prompt_3.md
+
+python src/ollama/ScanBeeCode.py /Users/siddhartha.singh/scaningBee/tests/test.ps1 
 ```
 ## run server
 <!-- uvicorn src.api_scanbee:app --reload -->
