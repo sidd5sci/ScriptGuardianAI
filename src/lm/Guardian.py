@@ -3,57 +3,16 @@ import os, sys, json, re
 import requests
 from pathlib import Path
 from typing import List
-
-#from langchain_ollama import ChatOllama
-#from langchain_community.chat_models import ChatOllama
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 from langchain_core.output_parsers import JsonOutputParser
 from langchain.prompts import ChatPromptTemplate
+from .LMStudio import LMStudioChat
+
 
 LLM_MODEL    = os.getenv("SECSCAN_MODEL", "claude-3.7-sonnet-reasoning-gemma3-12b")
 TEMPERATURE  = float(os.getenv("SECSCAN_T", "0"))
 
-class LMStudioChat:
-    def __init__(self, model: str, temperature: float = 0.0, url: str = "http://127.0.0.1:1234/v1/chat/completions"):
-        self.model = model
-        self.temperature = temperature
-        self.url = url
-        self.repetition_penalty = 1.15
-        self.top_p = 0.9
-
-
-    def invoke(self, messages):
-        openai_messages = []
-        for m in messages:
-            if isinstance(m, SystemMessage):
-                role = "system"
-            elif isinstance(m, HumanMessage):
-                role = "user"
-            elif isinstance(m, AIMessage):
-                role = "assistant"
-            else:
-                raise ValueError(f"Unsupported message type: {type(m)}")
-            openai_messages.append({"role": role, "content": m.content})
-
-        payload = {
-            "model": self.model,
-            "messages": openai_messages,
-            "temperature": self.temperature,
-            "stream": False
-        }
-
-        # print("DEBUG Payload:", json.dumps(payload, indent=2))
-
-        response = requests.post(self.url, json=payload)
-        if response.status_code != 200:
-            print("LM Studio error response:")
-            print(response.text)
-        response.raise_for_status()
-
-        result = response.json()
-        return AIMessage(content=result["choices"][0]["message"]["content"])
-
-class ScanBee:
+class Guardian:
     def __init__(self,
                  llm_model: str = LLM_MODEL,
                  temperature: float = TEMPERATURE):
@@ -137,37 +96,35 @@ class ScanBee:
         except Exception:
             pass
         return None
+    
+
+    
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
-        sys.exit("Usage: python scanBee.py <script-file-or-dir> <prompt-file>")
+        sys.exit("Usage: python Guardian.py <script-file-or-dir>")
 
     input_path = Path(sys.argv[1])
-    prompt_path = Path("src/ollama/prompts/powershell/prompt_10.md")
+    prompt_ps1 = Path("src/ollama/prompts/powershell/prompt_10.md")
+    prompt_groovy = Path("src/ollama/prompts/groovy/prompt_9.md")
 
-    if not prompt_path.is_file():
-        sys.exit(f"ERR: {prompt_path} not found or not a file")
+    if not all(p.is_file() for p in [prompt_ps1, prompt_groovy]):
+        sys.exit("ERR: One or more prompt files not found.")
 
-    bee = ScanBee()
-    print("===========OUTPUT=================\n\n")
+    bee = Guardian()
+    print("===========OUTPUT=================\n")
 
     if input_path.is_file():
         if input_path.suffix.lower() not in {".ps1", ".groovy", ".txt"}:
             sys.exit(f"ERR: {input_path} is not a supported script file")
-        
-        print(f"\n--- Analyzing: {input_path.name} ---\n")
-        result = bee.analyse_file(input_path, prompt_path)
+        print(f"--- Analyzing: {input_path.name} ---")
+        result = bee.analyse_file(input_path, prompt_ps1)
         print(json.dumps(result, indent=2))
 
     elif input_path.is_dir():
-        for script_file in sorted(input_path.glob("*")):
-            if script_file.suffix.lower() not in {".ps1", ".groovy", ".txt"}:
-                continue  # skip non-script files
-
-            print(f"\n--- Analyzing: {script_file.name} ---\n")
-            result = bee.analyse_file(script_file, prompt_path)
-            print(json.dumps(result, indent=2))
+        excel_output = Path("guardian_batch_report.xlsx")
+        output_file = bee.analyse_folder(input_path, prompt_ps1, prompt_ps1_alt, prompt_groovy, excel_output)
+        print(f"✅ Batch report saved to: {output_file}")
 
     else:
         sys.exit(f"ERR: {input_path} is not a valid file or directory")
-
