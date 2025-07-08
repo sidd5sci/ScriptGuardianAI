@@ -65,6 +65,8 @@ pip3 install bitsandbytes
 pip3 install -U langchain-ollama
 pip install datasets sentence-transformers requests
 pip3 install --upgrade cffi
+pip install transformers peft datasets bitsandbytes accelerate
+
 
 pip3 install requests beautifulsoup4
 
@@ -88,6 +90,7 @@ python src/ollama/ScanBee.py /Users/siddhartha.singh/scaningBee/tests/test.ps1 /
 python src/ollama/ScanBeeCode.py /Users/siddhartha.singh/scaningBee/tests/test.ps1 /Users/siddhartha.singh/scaningBee/src/ollama/prompts/prompt_3.md
 
 python src/ollama/ScanBeeCode.py /Users/siddhartha.singh/scaningBee/tests/test.ps1 
+python src/ollama/checkLM.py /Users/siddhartha.singh/scaningBee/tests/test.ps1 
 ```
 ## run server
 <!-- uvicorn src.api_scanbee:app --reload -->
@@ -106,3 +109,37 @@ curl -X POST http://127.0.0.1:8000/analyze \
 # 2. file upload
 curl -X POST http://127.0.0.1:8000/analyze \
      -F "file=@tests/test.ps1"
+
+## show list of models installed 
+```bash
+
+# Summarize your entire cache
+huggingface-cli scan-cache
+
+# Add --verbose to list every repo revision
+huggingface-cli scan-cache --verbose
+
+# Machine-readable JSON
+huggingface-cli scan-cache --json
+rm -rf ~/.cache/huggingface/hub/models--mistralai--Mistral-7B-Instruct-v0.2
+
+
+# update hugging face
+pip install -U "huggingface_hub>=0.24" "transformers>=4.41"
+
+# download a model
+transformers-cli download mistralai/Mistral-7B-v0.1 --cache-dir /path/to/exports
+
+# replace TOKEN with your real HF token string
+HF_TOKEN=hf_xxxxx huggingface-cli download mistralai/Mistral-7B-v0.1 \
+    --repo-type model \
+    --local-dir ~/hf_cache/mistral-7b \
+    --local-dir-use-symlinks auto            # only on hub ≥ 0.21
+
+
+python download.py          # prompts for token
+# or
+HF_TOKEN=hf_xxx python download_mistral.py
+
+```
+f98dcce7fd83885d6ee5c9b763c6e394a6bc1e8d
