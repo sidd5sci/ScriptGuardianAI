@@ -10,10 +10,10 @@ from pydantic import BaseModel
 import sys, pathlib
 sys.path.insert(0, str(pathlib.Path(__file__).parent / "src"))
 
-from src.ollama.ScanBee import ScanBee   # or src.ScanBee if that’s your module
+from src.lm.Guardian import Guardian   # or src.ScanBee if that’s your module
 
 # -------- initialise once -------------
-bee = ScanBee()        # loads embeddings + local LLM
+bee = Guardian()        # loads embeddings + local LLM
 app = FastAPI(title="ScanBee – Script Security Auditor")
 
 # ---------- pydantic models ----------
