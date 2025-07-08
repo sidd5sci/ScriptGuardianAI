@@ -7,7 +7,8 @@ import pandas as pd
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 from langchain_core.output_parsers import JsonOutputParser
 from langchain.prompts import ChatPromptTemplate
-from .LMStudio import LMStudioChat
+from src.lm.LMStudio import LMStudioChat
+
 
 LLM_MODEL = os.getenv("SECSCAN_MODEL", "claude-3.7-sonnet-reasoning-gemma3-12b")
 TEMPERATURE = float(os.getenv("SECSCAN_T", "0"))
@@ -68,6 +69,8 @@ class Guardian:
 
     def analyse_folder(self, folder: Path, prompt_ps1: Path, prompt_groovy: Path, output_excel: Path):
         rows = []
+        print("Analyzing folder:", folder)
+
         for file in sorted(folder.glob("*")):
             if file.suffix.lower() not in {".ps1", ".groovy", ".txt"}:
                 continue
@@ -76,12 +79,13 @@ class Guardian:
             prompt = prompt_ps1
             if file.suffix.lower() == ".groovy":
                 prompt = prompt_groovy
-            elif "alt" in file.stem.lower():
-                prompt = prompt_ps1_alt
-
+            
+            print("\nPrompt selected:", prompt)
+            print(f"--- Analyzing: {file.name} ---")
             try:
                 result = self.analyse_file(file, prompt)
                 output = json.dumps(result, indent=2)
+                print(output)
                 status = result.get("script", "error")
             except Exception as e:
                 output = f"ERROR: {e}"
@@ -125,8 +129,8 @@ if __name__ == "__main__":
         sys.exit("Usage: python Guardian.py <script-file-or-dir>")
 
     input_path = Path(sys.argv[1])
-    prompt_ps1 = Path("src/ollama/prompts/powershell/prompt_10.md")
-    prompt_groovy = Path("src/ollama/prompts/groovy/prompt.md")
+    prompt_ps1 = Path("src/lm/prompts/powershell/prompt_10.md")
+    prompt_groovy = Path("src/lm/prompts/groovy/prompt_9.md")
 
     if not all(p.is_file() for p in [prompt_ps1, prompt_groovy]):
         sys.exit("ERR: One or more prompt files not found.")

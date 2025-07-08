@@ -1,13 +1,13 @@
-# ScaningBee
+# ScriptGuardian
 
-Offline security‑issue detector for PowerShell & Groovy scripts.  
-Uses a *local* LLM (Mistral, Claude Sonnet via Ollama, etc.) plus a **vector store** of labelled examples for k‑shot RAG.
+Security‑issue detector for PowerShell & Groovy scripts.  
+Uses a *local* LLM (Mistral, Claude Sonnet via Ollama.) plus a **vector store** of labelled examples for k‑shot RAG.
 
 ## Quick start
 
 ```bash
 git clone <repo>
-cd ScaningBee
+cd ScriptGuardian
 
 brew update
 brew install pyenv
@@ -22,10 +22,10 @@ eval "$(pyenv virtualenv-init -)"
 
 
 pyenv install 3.10.13
-pyenv virtualenv 3.10.13 bee-env
+pyenv virtualenv 3.10.13 env
 
 source ~/.zshrc
-pyenv activate bee-env
+pyenv activate env
 
 pip3 install -r requirements.txt
 ```
@@ -35,13 +35,15 @@ other way
 python -m venv .venv && source .venv/bin/activate
 pip install -e .
 ```
-## start ollama 
+## start ollama if using 
 ```bash
 ollama pull nomic-embed-text
 ollama pull codellama:latest
 ollama pull llama3:latest
 ollama serve
 ```
+## Start LM studio if using
+
 
 # 1. Build the vector DB from your labelled corpus
 
@@ -70,7 +72,6 @@ pip install transformers peft datasets bitsandbytes accelerate
 
 pip3 install requests beautifulsoup4
 
-
 pip3 install fastapi uvicorn
 
 # activate the same venv where you run DataEmbed.py
@@ -82,18 +83,12 @@ pip install --upgrade "langchain-community>=0.0.28"
 ```sh
 export PYTHONPATH=$PWD/src 
 pip install -e .
-python -m Ollama.scanBee2 tests/test.ps1
 
-python src/ollama/DataEmbed.py /Users/siddhartha.singh/scaningBee/resources
-python src/ollama/ScanBee.py /Users/siddhartha.singh/scaningBee/tests/test.ps1 /Users/siddhartha.singh/scaningBee/src/ollama/prompts/prompt_3.md
-
-python src/ollama/ScanBeeCode.py /Users/siddhartha.singh/scaningBee/tests/test.ps1 /Users/siddhartha.singh/scaningBee/src/ollama/prompts/prompt_3.md
-
-python src/ollama/ScanBeeCode.py /Users/siddhartha.singh/scaningBee/tests/test.ps1 
-python src/ollama/checkLM.py /Users/siddhartha.singh/scaningBee/tests/test.ps1 
+python -m src.lm.Guardian tests/powershell/batch1/script_01.ps1
 ```
 ## run server
 <!-- uvicorn src.api_scanbee:app --reload -->
+```sh
 export PYTHONPATH=$PWD/src     
 uvicorn main:app --reload
 
@@ -109,8 +104,10 @@ curl -X POST http://127.0.0.1:8000/analyze \
 # 2. file upload
 curl -X POST http://127.0.0.1:8000/analyze \
      -F "file=@tests/test.ps1"
+```
 
-## show list of models installed 
+
+## For huggingface show list of models installed 
 ```bash
 
 # Summarize your entire cache
@@ -142,4 +139,3 @@ python download.py          # prompts for token
 HF_TOKEN=hf_xxx python download_mistral.py
 
 ```
-f98dcce7fd83885d6ee5c9b763c6e394a6bc1e8d
