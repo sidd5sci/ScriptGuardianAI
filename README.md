@@ -139,3 +139,6 @@ python download.py          # prompts for token
 HF_TOKEN=hf_xxx python download_mistral.py
 
 ```
+
+
+```json\n{\n  "script": "vulnerable",\n  "score": 7,\n  "findings": [\n    {\n      "line": 19,\n      "severity": "Error",\n      "statement": "Write-Host \\"[*]\\ API Response: $($response | ConvertTo-Json -Compress)\\"",\n      "reason": "Sensitive variable $apikey is being printed to the console.",\n      "recommendation": "All sensitive variables must be used strictly for authentication within the script and never exposed via output operations. Report this use as a policy violation.",\n      "code_suggestion": "Remove or replace this line with a safe alternative that does not expose the API key."\n    },\n    {\n      "line": 20,\n      "severity": "Error",\n      "statement": "Write-Host \\"[*]\\ API Response: $($response | ConvertTo-Json -Compress)\\"",\n      "reason": "Sensitive variable $apikey is being printed to the console as part of a JSON response.",\n      "recommendation": "All sensitive variables must be used strictly for authentication within the script and never exposed via output operations. Report this use as a policy violation.",\n      "code_suggestion": "Remove or replace this line with a safe alternative that does not expose the API key."\n    }\n  ]\n}\n```

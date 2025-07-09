@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ScriptGuardian</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #f5f7fa;
+      --fg: #2d3748;
+      --card: #fff;
+      --accent: #3f51b5;
+      --border: #ccc;
+      --success: #4caf50;
+      --dark-bg: #1a202c;
+      --dark-card: #2d3748;
+      --dark-fg: #f0f0f0;
+      --highlight-error: #ffe4e6;
+      --highlight-warn: #fff8dc;
+      --text-error: #b91c1c;
+      --text-warning: #92400e;
+    }
+
+    html[data-theme='dark'] {
+      --bg: var(--dark-bg);
+      --fg: var(--dark-fg);
+      --card: var(--dark-card);
+      --highlight-error: #7f1d1d;
+      --highlight-warn: #5c4d09;
+      --text-error: #fecaca;
+      --text-warning: #fde047;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: var(--bg);
+      color: var(--fg);
+      margin: 0;
+      padding: 2rem;
+    }
+
+    .container {
+      max-width: 900px;
+      margin: auto;
+    }
+
+    h1 {
+      font-size: 2rem;
+      margin-bottom: 1rem;
+    }
+
+    .card {
+      background: var(--card);
+      padding: 2rem;
+      border-radius: 12px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+      margin-top: 1rem;
+    }
+
+    textarea {
+      width: 100%;
+      padding: 0.75rem;
+      font-family: monospace;
+      font-size: 1rem;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      resize: vertical;
+    }
+
+    pre, #result div {
+      color: var(--fg);
+    }
+
+    .upload {
+      margin-top: 1rem;
+    }
+
+    .file-label {
+        display: inline-block;
+        background-color: #e0e0e0;
+        padding: 0.6rem 1.4rem;
+        border-radius: 6px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: background 0.2s ease;
+    }
+
+    .file-label:hover {
+        background-color: #d5d5d5;
+    }
+
+    html[data-theme='dark'] .file-label {
+        background-color: #4a5568;
+        color: #f0f0f0;
+    }
+
+    .buttons {
+      margin-top: 1.5rem;
+      display: flex;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+
+    button {
+      padding: 0.6rem 1.4rem;
+      border: none;
+      border-radius: 6px;
+      font-size: 0.95rem;
+      cursor: pointer;
+      transition: background 0.2s ease;
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      color: white;
+    }
+
+    .btn-secondary {
+      background: #e0e0e0;
+      color: #333;
+    }
+
+    pre {
+      background: #111;
+      color: #9ae6b4;
+      padding: 1rem;
+      border-radius: 8px;
+      margin-top: 1rem;
+      max-height: 400px;
+      overflow: auto;
+      display: none;
+    }
+
+    .status {
+      margin-top: 1rem;
+      font-size: 0.9rem;
+    }
+
+    .progress-bar {
+      margin-top: 1rem;
+      height: 6px;
+      background: #e0e0e0;
+      border-radius: 3px;
+      overflow: hidden;
+    }
+
+    #fileName {
+        font-weight: 500;
+        margin-top: 0.6rem;
+        font-size: 0.95rem;
+        color: var(--fg);
+    }
+
+    html[data-theme='dark'] #fileName {
+        color: var(--dark-fg);
+    }
+
+    .btn-primary:disabled {
+      background: #a5a5a5;
+      color: #eee;
+      cursor: not-allowed;
+      opacity: 0.7;
+    }
+
+    .progress-fill {
+      height: 100%;
+      width: 0%;
+      background: var(--success);
+      transition: width 0.4s ease-in-out;
+    }
+
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    @media (max-width: 768px) {
+      .buttons {
+        flex-direction: column;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="topbar">
+      <h1>🔍 ScriptGuardian</h1>
+      <button class="btn-secondary" onclick="toggleTheme()" title="Toggle Theme">
+        <span id="themeIcon">🌞</span> Theme
+      </button>
+    </div>
+
+    <div class="card">
+      <div id="textInputGroup">
+        <label for="scriptText">Paste your PowerShell or Groovy script</label>
+        <textarea id="scriptText" rows="8" placeholder="# Paste script here..." oninput="updateAnalyzeButtonState()"></textarea>
+    </div>
+
+    <div id="orSeparator" style="text-align: center; margin: 1.2rem 0; font-weight: 500; color: var(--fg); position: relative;">
+      <div style="border-top: 1px solid var(--border); position: absolute; top: 50%; left: 0; right: 0;"></div>
+      <span style="background: var(--card); padding: 0 1rem; position: relative; z-index: 1;">OR</span>
+    </div>
+
+      <div class="upload">
+        <label class="file-label" id="customFileLabel">
+          📁 <span id="fileLabelText">Choose a file to upload</span>
+          <input type="file" id="scriptFile" accept=".ps1,.groovy" hidden onchange="handleFileSelection()" />
+        </label>
+        <div id="fileName" class="file-name"></div>
+      </div>
+
+      <div class="buttons">
+        <button class="btn-primary" id="analyzeButton" onclick="sendRequest()" disabled>🧪 Analyze</button>
+        <button class="btn-secondary" onclick="clearAll()">🧹 Clear</button>
+      </div>
+
+      <div class="progress-bar" id="progress" style="display: none;">
+        <div class="progress-fill" id="progressBar"></div>
+      </div>
+
+      <div class="status" id="status"></div>
+      <pre id="result" style="padding: 0; margin: 0;"></pre>
+    </div>
+  </div>
+
+  <script>
+    function toggleTheme() {
+      const html = document.documentElement;
+      const isDark = html.getAttribute("data-theme") === "dark";
+      html.setAttribute("data-theme", isDark ? "light" : "dark");
+
+      document.getElementById("themeIcon").textContent = isDark ? "🌞" : "🌜";
+    }
+
+    function handleFileSelection() {
+      const fileInput = document.getElementById("scriptFile");
+      const fileNameDisplay = document.getElementById("fileName");
+      const fileLabelText = document.getElementById("fileLabelText");
+
+      if (fileInput.files.length > 0) {
+        fileNameDisplay.textContent = `📄 ${fileInput.files[0].name}`;
+        fileLabelText.textContent = "Change file";
+      } else {
+        fileNameDisplay.textContent = "";
+        fileLabelText.textContent = "Choose a file to upload";
+      }
+
+      updateAnalyzeButtonState();
+    }
+
+    function updateAnalyzeButtonState() {
+      const analyzeBtn = document.getElementById("analyzeButton");
+      const scriptText = document.getElementById("scriptText").value.trim();
+      const fileSelected = document.getElementById("scriptFile").files.length > 0;
+      analyzeBtn.disabled = !(scriptText || fileSelected);
+    }
+
+    function updateProgress(percent) {
+      const bar = document.getElementById("progressBar");
+      const container = document.getElementById("progress");
+      bar.style.width = percent + "%";
+      container.style.display = "block";
+    }
+
+    function clearAll() {
+      document.getElementById("scriptText").value = "";
+      document.getElementById("scriptFile").value = "";
+      document.getElementById("fileName").textContent = "";
+      document.getElementById("result").textContent = "";
+      document.getElementById("result").style.display = "none";
+      document.getElementById("status").textContent = "";
+      document.getElementById("scriptText").style.display = "block";
+      document.getElementById("textInputGroup").style.display = "block";
+      document.getElementById("orSeparator").style.display = "block";
+      updateProgress(0);
+      const summary = document.getElementById("resultSummary");
+      if (summary) summary.remove();
+    }
+
+    document.getElementById("scriptFile").addEventListener("change", function () {
+        const info = document.getElementById("fileName");
+        const textGroup = document.getElementById("textInputGroup");
+        const result = document.getElementById("result");
+        const status = document.getElementById("status");
+
+        // Reset all UI states on file change
+        result.textContent = "";
+        result.style.display = "none";
+        status.textContent = "";
+        updateProgress(0);
+        const summary = document.getElementById("resultSummary");
+        if (summary) summary.remove();
+        const orSep = document.getElementById("orSeparator");
+
+        if (this.files.length > 0) {
+            info.textContent = `📄 Selected: ${this.files[0].name}`;
+            textGroup.style.display = "none";
+            if (orSep) orSep.style.display = "none";
+        } else {
+            info.textContent = "";
+            textGroup.style.display = "block";
+            if (orSep) orSep.style.display = "block"; 
+        }
+    });
+
+    async function sendRequest() {
+      const textArea = document.getElementById("scriptText");
+      const fileInput = document.getElementById("scriptFile");
+      const status = document.getElementById("status");
+      const result = document.getElementById("result");
+
+      const hasFile = fileInput.files.length > 0;
+      const hasText = textArea.value.trim().length > 0;
+
+      const originalScript = hasFile
+        ? await fileInput.files[0].text()
+        : textArea.value;
+
+      if (!hasFile && !hasText) {
+        status.textContent = "⚠️ Please paste a script or upload a file.";
+        return;
+      }
+
+      updateProgress(30);
+      status.textContent = "";
+      result.style.display = "none";
+
+      let body, headers = {};
+
+      if (hasFile) {
+        const form = new FormData();
+        form.append("file", fileInput.files[0]);
+        body = form;
+      } else {
+        body = JSON.stringify({ script: textArea.value });
+        headers["Content-Type"] = "application/json";
+      }
+
+      try {
+        const res = await fetch("http://localhost:8000/analyze", {
+          method: "POST",
+          headers,
+          body,
+        });
+
+        updateProgress(80);
+
+        const summaryBlock = document.createElement('div');
+        summaryBlock.id = "resultSummary";
+        summaryBlock.style = "margin: 8px 0 12px 0; font-size: 0.95rem; font-weight: 500;";
+
+        if (!res.ok) {
+          const msg = await res.text();
+          status.textContent = `❌ ${res.status} – ${msg}`;
+          updateProgress(0);
+          return;
+        }
+
+        const json = await res.json();
+
+        const findings = json.result.findings || [];
+        const findingCount = findings.length;
+        const score = json.result.score;
+        const statusText = json.result.script === "safe" ? "Safe" : "Vulnerable";
+        const statusColor = json.result.script === "safe" ? "green" : "#b91c1c";
+
+        summaryBlock.innerHTML = `
+          🧾 <strong>${findingCount} ${findingCount === 1 ? 'finding' : 'findings'}</strong>
+          | Score: ${score}/10
+          | Status: <span style="color: ${statusColor}; font-weight: 600;">${statusText}</span>
+        `;
+
+        const resultContainer = document.getElementById("result");
+        if (resultContainer.previousSibling?.id === "resultSummary") {
+          resultContainer.previousSibling.remove(); // prevent stacking
+        }
+        resultContainer.insertAdjacentElement("beforebegin", summaryBlock);
+
+        result.innerHTML = formatHighlightedScript(originalScript, json.result.findings);
+        result.style.display = "block";
+        status.textContent = "✅ Analysis complete.";
+        document.getElementById("scriptText").style.display = "block";
+        document.getElementById("textInputGroup").style.display = "block";
+        updateProgress(100);
+      } catch (err) {
+        status.textContent = "❌ Network error: " + err;
+        updateProgress(0);
+      }
+    }
+
+    function formatHighlightedScript(script, findings) {
+      const lines = script.split(/\r?\n/);
+      const markMap = new Map();
+
+      for (const f of findings) {
+        if (!markMap.has(f.line)) markMap.set(f.line, []);
+        markMap.get(f.line).push(f);
+      }
+
+      let html = `
+        <div style="
+          font-family: monospace;
+          font-size: 0.9rem;
+          border: 1px solid var(--border, #ccc);
+          border-radius: 6px;
+          background: var(--card, #fff);
+          color: var(--fg, #2d3748);
+          overflow-x: auto;
+          box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+          line-height: 1.05;
+          margin: 0;
+          padding: 0;
+        ">`;
+
+      for (let i = 0; i < lines.length; i++) {
+        const lineNum = i + 1;
+        const rawLine = lines[i] || "";
+        function escapeHTML(str) {
+          return str
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#39;")
+            .replace(/`/g, "&#96;");
+        }
+
+        const escapedLine = escapeHTML(rawLine);
+
+        const findingsForLine = markMap.get(lineNum) || [];
+
+        const severity = findingsForLine.some(f => f.severity === "Error")
+          ? "Error"
+          : findingsForLine.some(f => f.severity === "Warning")
+          ? "Warning"
+          : null;
+
+        const bg = severity === "Error"
+          ? "var(--highlight-error, #fee2e2)"
+          : severity === "Warning"
+          ? "var(--highlight-warn, #8B4513)"
+          : "transparent";
+
+        const borderColor = severity === "Error"
+          ? "#f87171"
+          : severity === "Warning"
+          ? "#ecc94b"
+          : "transparent";
+
+        html += `
+          <div style="
+            display: flex;
+            align-items: flex-start;
+            background: ${bg};
+            border-left: 4px solid ${borderColor};
+            padding: 1px 8px;
+            margin: 0 8px;
+            line-height: 1.1;
+            min-height: 1.2em;
+            width: 100%;
+          ">
+            <div style="
+              width: 36px;
+              color: #888;
+              text-align: right;
+              margin-right: 12px;
+              font-weight: 600;
+              flex-shrink: 0;
+            ">${lineNum}</div>
+            <div style="white-space: pre-wrap; flex: 1; background: ${bg};">${escapedLine || '&nbsp;'}</div>
+          </div>`;
+
+        for (const f of findingsForLine) {
+          html += `
+            <div style="
+              margin: 2px 0 2px 52px;
+              padding: 0;
+              font-size: 0.8rem;
+              color: var(--text-${f.severity.toLowerCase()});
+              font-style: italic;
+              line-height: 1.15
+            ">💡 <strong>[${f.severity}]</strong> ${f.reason}
+</div>`;
+        }
+      }
+
+      html += `</div>`;
+      return html;
+    }
+
+  </script>
+</body>
+</html>

@@ -28,7 +28,11 @@ class Guardian:
         }]
 
     def _to_chat_messages(self, lst):
-        role_map = {"user": HumanMessage, "assistant": AIMessage}
+        role_map = {
+            "system": SystemMessage,
+            "user": HumanMessage,
+            "assistant": AIMessage
+        }
         return [role_map[m["role"]](content=m["content"]) for m in lst]
 
     def analyse(self, code: str) -> dict:
@@ -37,8 +41,16 @@ class Guardian:
         response = self.llm.invoke(chat_messages)
 
         raw_json = self._extract_json(response.content)
+
         if not raw_json:
-            return {"error": "LLM returned invalid JSON", "raw": response.content}
+            print(" ⚠️ Invalid JSON. Retrying with reformatting prompt...")
+            raw_json = self.reformat_invalid_json(response.content)
+        
+        if not raw_json:
+            return {"error": "LLM returned non-JSON format twice", "raw": raw_json}
+
+        # print("DEBUG Response:", raw_json, type(raw_json))
+        
 
         findings = raw_json.get("findings", [])
         clean_findings = []
@@ -123,6 +135,46 @@ class Guardian:
         except Exception:
             pass
         return None
+
+    def reformat_invalid_json(self, malformed_text: str) -> dict | None:
+        retry_prompt = (
+            "You are a JSON validation assistant. The next input is supposed to be a valid JSON object, "
+            "but it may include markdown formatting or additional commentary. "
+            "Return ONLY the corrected JSON object. "
+            "DO NOT include explanations, analysis, prose, code blocks, or anything else. "
+            "Your output MUST begin with '{' and end with '}'."
+        )
+        retry_messages = [
+            {"role": "user", "content": retry_prompt+"\n\n"+malformed_text.strip()}
+        ]
+        chat_messages = self._to_chat_messages(retry_messages)
+        retry_response = self.llm.invoke(chat_messages)
+        # print("Reformated response:\n", retry_response.content, type(retry_response),"\n")
+
+        try:
+            # Step 1: Remove ```json or ``` wrappers if present
+            cleaned = retry_response.content.strip()
+            cleaned = re.sub(r"^```(?:json)?\s*", "", cleaned, flags=re.IGNORECASE | re.MULTILINE)
+            cleaned = re.sub(r"\s*```$", "", cleaned, flags=re.MULTILINE)
+            
+            # Step 2: Extract JSON block (just in case)
+            match = re.search(r'{[\s\S]*}', cleaned)
+            if not match:
+                print(" No JSON block found in response")
+                return None
+
+            json_str = match.group(0)
+            # Step 3: Escape invalid backslashes
+            json_str = re.sub(r'(?<!\\)\\(?![\\/"bfnrtu])', r'\\\\', json_str)
+            # Step 4: Parse to dict
+            return json.loads(json_str)
+
+        except Exception as e:
+            print(f" Failed to parse JSON: {e}")
+        
+        return None
+
+
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
