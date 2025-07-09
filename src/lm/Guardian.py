@@ -129,7 +129,7 @@ if __name__ == "__main__":
         sys.exit("Usage: python Guardian.py <script-file-or-dir>")
 
     input_path = Path(sys.argv[1])
-    prompt_ps1 = Path("src/lm/prompts/powershell/prompt_10.md")
+    prompt_ps1 = Path("src/lm/prompts/powershell/prompt_11.md")
     prompt_groovy = Path("src/lm/prompts/groovy/prompt_9.md")
 
     if not all(p.is_file() for p in [prompt_ps1, prompt_groovy]):
