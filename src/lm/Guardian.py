@@ -17,8 +17,12 @@ class Guardian:
     def __init__(self, llm_model: str = LLM_MODEL, temperature: float = TEMPERATURE):
         self.llm = LMStudioChat(model=llm_model, temperature=temperature)
         self.parser = JsonOutputParser()
-        self.prompt = None
+        self.prompt_ps1 = Path("src/lm/prompts/powershell/prompt_11.md")
+        self.prompt_groovy = Path("src/lm/prompts/groovy/prompt_9.md")
         self._line_map = {}
+        
+        if not all(p.is_file() for p in [self.prompt_ps1, self.prompt_groovy]):
+            sys.exit("ERR: One or more prompt files not found.")
 
     def _build_messages(self, code: str) -> List[dict]:
         safe_code = self.escape_braces(code)
@@ -73,13 +77,17 @@ class Guardian:
             "findings": clean_findings
         }
 
-    def analyse_file(self, path: Path, prompt_path: Path) -> dict:
+    def analyse_file(self, path: Path, file_extension: str) -> dict: 
         code = path.read_text(encoding="utf-8", errors="ignore")
-        self.prompt = prompt_path.read_text(encoding="utf-8", errors="ignore")
+        if file_extension == ".ps1":
+            self.prompt = self.prompt_ps1.read_text(encoding="utf-8", errors="ignore")
+        elif file_extension == ".groovy":
+            self.prompt = self.prompt_groovy.read_text(encoding="utf-8", errors="ignore")
+
         instrumented_code = self.with_line_markers(code)
         return self.analyse(instrumented_code)
 
-    def analyse_folder(self, folder: Path, prompt_ps1: Path, prompt_groovy: Path, output_excel: Path):
+    def analyse_folder(self, folder: Path, output_excel: Path):
         rows = []
         print("Analyzing folder:", folder)
 
@@ -181,25 +189,19 @@ if __name__ == "__main__":
         sys.exit("Usage: python Guardian.py <script-file-or-dir>")
 
     input_path = Path(sys.argv[1])
-    prompt_ps1 = Path("src/lm/prompts/powershell/prompt_11.md")
-    prompt_groovy = Path("src/lm/prompts/groovy/prompt_9.md")
-
-    if not all(p.is_file() for p in [prompt_ps1, prompt_groovy]):
-        sys.exit("ERR: One or more prompt files not found.")
-
     bee = Guardian()
     print("===========OUTPUT=================\n")
 
     if input_path.is_file():
-        if input_path.suffix.lower() not in {".ps1", ".groovy", ".txt"}:
+        if input_path.suffix.lower() not in {".ps1", ".groovy"}:
             sys.exit(f"ERR: {input_path} is not a supported script file")
         print(f"--- Analyzing: {input_path.name} ---")
-        result = bee.analyse_file(input_path, prompt_ps1)
+        result = bee.analyse_file(input_path, input_path.suffix.lower())
         print(json.dumps(result, indent=2))
 
     elif input_path.is_dir():
         excel_output = Path("guardian_batch_report.xlsx")
-        output_file = bee.analyse_folder(input_path, prompt_ps1, prompt_groovy, excel_output)
+        output_file = bee.analyse_folder(input_path, excel_output)
         print(f"✅ Batch report saved to: {output_file}")
 
     else:

@@ -1,0 +1,161 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>ScanBee – Script Auditor</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f7f7fa;
+      margin: 0;
+      padding: 2rem;
+      color: #333;
+    }
+    .panel {
+      max-width: 900px;
+      margin: auto;
+      background: #fff;
+      padding: 1.5rem;
+      border-radius: 8px;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, .05);
+    }
+    textarea {
+      width: 100%;
+      min-height: 180px;
+      padding: .5rem;
+      font-family: monospace;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+    }
+    .btn {
+      display: inline-block;
+      margin-top: 1rem;
+      padding: .5rem 1rem;
+      border: none;
+      border-radius: 4px;
+      background: #007bff;
+      color: #fff;
+      font-size: .9rem;
+      cursor: pointer;
+    }
+    .btn-secondary {
+      background: #6c757d;
+    }
+    .line {
+      display: flex;
+      padding: 2px 8px;
+      border-radius: 3px;
+    }
+    .line.error {
+      background: #ffe2e2;
+    }
+    .line.warning {
+      background: #fff3cd;
+    }
+    .line-number {
+      width: 40px;
+      text-align: right;
+      padding-right: 10px;
+      color: #999;
+    }
+    .code-text {
+      flex: 1;
+      white-space: pre-wrap;
+    }
+    select {
+      margin-top: 1rem;
+      padding: 0.3rem;
+      border-radius: 4px;
+    }
+    .output {
+      margin-top: 1.5rem;
+      background: #f9f9f9;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      padding: 0.5rem;
+      font-family: monospace;
+      white-space: pre-wrap;
+    }
+  </style>
+  <script>
+    async function sendRequest() {
+      const outputDiv = document.getElementById("result");
+      const raw = document.getElementById("scriptText").value;
+      const scriptType = document.getElementById("scriptType").value;
+      outputDiv.textContent = "⏳ Scanning...";
+
+      const response = await fetch("http://127.0.0.1:8000/analyze", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ script: raw, language: scriptType })
+      });
+
+      if (!response.ok) {
+        outputDiv.textContent = `❌ ${response.status} - ${await response.text()}`;
+        return;
+      }
+
+      const data = await response.json();
+      displayFormattedOutput(raw, data.findings || []);
+    }
+
+    function clearText() {
+      document.getElementById("scriptText").value = "";
+      document.getElementById("result").innerHTML = "";
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement("div");
+      div.innerText = text;
+      return div.innerHTML;
+    }
+
+    function displayFormattedOutput(script, findings) {
+      const resultDiv = document.getElementById("result");
+      const lines = script.split('\n');
+      let html = "";
+
+      for (let i = 0; i < lines.length; i++) {
+        const lineNum = i + 1;
+        const match = findings.filter(f => f.line === lineNum);
+        let severity = match.length ? match[0].severity.toLowerCase() : "";
+        let tooltip = match.map(f =>
+          `[${f.severity}] ${f.reason}\nRecommendation: ${f.recommendation}\nFix: ${f.code_suggestion}`
+        ).join("\n\n");
+
+        html += `
+          <div class="line ${severity}" title="${tooltip}">
+            <div class="line-number">${lineNum}</div>
+            <div class="code-text">${escapeHtml(lines[i] || '&nbsp;')}</div>
+          </div>`;
+      }
+
+      resultDiv.innerHTML = html;
+    }
+  </script>
+</head>
+<body>
+  <div class="panel">
+    <h1>🔍 ScanBee – Script Security Auditor</h1>
+    <label for="scriptText">Paste your script:</label>
+    <textarea id="scriptText" placeholder="# PowerShell or Groovy script..."></textarea>
+
+    <label for="scriptType">Select script type:</label>
+    <select id="scriptType">
+      <option value="powershell">PowerShell</option>
+      <option value="groovy">Groovy</option>
+    </select>
+
+    <div>
+      <button class="btn" onclick="sendRequest()">Analyze</button>
+      <button class="btn btn-secondary" onclick="clearText()">Clear</button>
+    </div>
+
+    <div id="result" class="output"></div>
+  </div>
+</body>
+</html>
