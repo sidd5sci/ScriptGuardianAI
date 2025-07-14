@@ -11,11 +11,11 @@ Set-Content -Path "sensitive.txt" -Value $nonSensitive
 # Scenario 2
 $testVar = "##WMI.PASS##"
 # Write-Host $testVar
-# Set-Content -Path "sensitive.txt" -Value $testVar
+Set-Content -Path "sensitive.txt" -Value $testVar
  
  
 # Scenario 3
-$testVar1 = "##WMI.PASS##"
+$testVar1 = "##ESX.PASS##"
 $copyVar = $testVar1
 $newVar = $testVar1
 $new1Var = $copyVar

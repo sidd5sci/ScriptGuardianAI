@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ScriptGuardian</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        darkMode: 'class', // ENSURES Tailwind uses 'class' based dark mode
+      };
+    </script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet" />
+    <style>
+      body {
+        font-family: 'Inter', sans-serif;
+      }
+      .highlight-line {
+        display: flex;
+        align-items: flex-start;
+        padding: 0.1rem 0.25rem;   
+        line-height: 1.1;          
+        width: 100%;
+      }
+      
+      .line-number {
+        width: 2.5rem;
+        text-align: right;
+        margin-right: 0.75rem;
+        color: #888;
+        font-weight: 600;
+        flex-shrink: 0;
+      }
+      .code-text {
+        white-space: pre-wrap;
+        flex: 1;
+      }
+      .comment-wrapper {
+        margin: 0 !important;
+        padding: 0 !important;
+      }
+      .comment {
+        margin: 0; 
+        font-size: 0.875rem !important;
+        font-style: italic;
+        line-height: 1.1 !important;
+        padding: 0
+      }
+      .comment.error {
+        color: #dc2626;
+      }
+      .comment.warning {
+        color: #ca8a04;
+      }
+      .highlight-line:hover,
+      .comment:hover {
+        background-color: rgba(147, 197, 253, 0.15); /* blue-200 with opacity */
+      }
+    </style>
+  </head>
+  <body class="bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-100 transition-colors duration-300">
+    <div class="max-w-6xl mx-auto p-6">
+      <!-- Topbar -->
+      <div class="flex justify-between items-center mb-6">
+        <h1 class="text-3xl font-semibold">🔍 ScriptGuardian</h1>
+        <button onclick="toggleTheme()" class="text-sm text-gray-600 dark:text-gray-300 bg-gray-200 dark:bg-gray-700 px-3 py-1 rounded-md hover:bg-gray-300 dark:hover:bg-gray-600 transition">
+          <span id="themeIcon">🌞</span> Theme
+        </button>
+      </div>
+
+      <!-- Card -->
+      <div class="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-lg space-y-6 transition-all">
+        <!-- Text Input -->
+        <div id="textInputGroup">
+          <label for="scriptText" class="block mb-2 font-medium">Paste your PowerShell or Groovy script</label>
+          <textarea id="scriptText" rows="8" placeholder="# Paste script here..." class="w-full border border-gray-300 dark:border-gray-700 rounded-lg px-4 py-2 text-sm font-mono resize-y bg-white dark:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500" oninput="updateAnalyzeButtonState(); toggleOrSeparator();"></textarea>
+        </div>
+
+        <!-- OR Separator -->
+        <div id="orSeparator" class="relative text-center text-gray-500">
+          <div class="absolute top-1/2 left-0 right-0 border-t border-gray-300 dark:border-gray-700"></div>
+          <span class="bg-white dark:bg-gray-800 px-3 relative z-10">OR</span>
+        </div>
+
+        <!-- File Upload -->
+        <div>
+          <label for="scriptFile" class="inline-block bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-white px-4 py-2 rounded-md font-medium cursor-pointer hover:bg-gray-300 dark:hover:bg-gray-600 transition">
+            📁 <span id="fileLabelText">Choose a file to upload</span>
+            <input type="file" id="scriptFile" accept=".ps1,.groovy" class="hidden" />
+          </label>
+          <div id="fileName" class="mt-2 text-sm font-medium"></div>
+        </div>
+
+        <!-- Buttons -->
+        <div class="flex flex-wrap gap-4">
+          <button id="analyzeButton" disabled onclick="sendRequest()" class="bg-blue-600 text-white px-5 py-2 rounded-lg text-sm font-semibold hover:bg-blue-700 disabled:bg-gray-400 transition">🧪 Analyze</button>
+          <button onclick="clearAll()" class="bg-gray-200 text-gray-800 px-5 py-2 rounded-lg text-sm font-semibold hover:bg-gray-300 transition">🧹 Clear</button>
+        </div>
+
+        <!-- Progress bar -->
+        <div id="progress" class="w-full h-2 bg-gray-200 rounded-full overflow-hidden hidden">
+          <div id="progressBar" class="h-full bg-green-500 w-0 transition-all duration-500"></div>
+        </div>
+
+        <!-- Status -->
+        <div id="status" class="text-sm mt-2"></div>
+
+        <div id="copyWrapper" class="flex justify-end hidden">
+          <button onclick="copyResults()" class="text-xs ml-auto mb-2 bg-gray-200 dark:bg-gray-700 px-2 py-1 rounded hover:bg-gray-300 dark:hover:bg-gray-600">
+            📋 Copy Results
+          </button>
+        </div>
+
+        <pre id="resultText" class="hidden"></pre>
+
+        <!-- Result Block -->
+        <div id="result" class="highlighted-code text-sm font-mono bg-gray-50 dark:bg-gray-900 p-4 rounded-md border border-gray-200 dark:border-gray-700 overflow-x-auto whitespace-pre-line hidden"></div>
+      </div>
+    </div>
+
+    <script>
+      function toggleTheme() {
+        const html = document.documentElement;
+        const isDark = html.classList.toggle('dark');
+        document.getElementById("themeIcon").textContent = isDark ? "🌞" : "🌜";
+        localStorage.setItem('theme', isDark ? 'dark' : 'light');
+      }
+
+      window.addEventListener('DOMContentLoaded', () => {
+        const saved = localStorage.getItem('theme');
+        if (saved === 'dark') document.documentElement.classList.add('dark');
+      });
+
+      function copyResults() {
+        const temp = document.createElement('textarea');
+        temp.value = document.getElementById("resultText").textContent;
+        document.body.appendChild(temp);
+        temp.select();
+        document.execCommand("copy");
+        document.body.removeChild(temp);
+        showToast("Copied to clipboard!");
+      }
+
+
+      function toggleOrSeparator() {
+        const script = document.getElementById("scriptText").value.trim();
+        const file = document.getElementById("scriptFile").files.length > 0;
+        const orSep = document.getElementById("orSeparator");
+        orSep.style.display = (script || file) ? "none" : "block";
+      }
+
+    function updateAnalyzeButtonState() {
+      const analyzeBtn = document.getElementById("analyzeButton");
+      const scriptText = document.getElementById("scriptText").value.trim();
+      const fileSelected = document.getElementById("scriptFile").files.length > 0;
+      analyzeBtn.disabled = !(scriptText || fileSelected);
+    }
+
+    function updateProgress(percent) {
+      const bar = document.getElementById("progressBar");
+      const container = document.getElementById("progress");
+      bar.style.width = percent + "%";
+      container.style.display = "block";
+    }
+
+    function showSpinner(show) {
+      document.getElementById("spinner").classList.toggle("hidden", !show);
+    }
+
+    function showToast(message, type = 'success') {
+      const toast = document.getElementById("toast");
+      toast.textContent = message;
+      toast.className = `fixed bottom-6 right-6 px-4 py-2 rounded shadow-lg text-white transition-opacity duration-300 ${type === 'error' ? 'bg-red-600' : 'bg-green-600'}`;
+      toast.classList.remove("hidden");
+      setTimeout(() => toast.classList.add("hidden"), 3000);
+    }
+
+    function clearAll() {
+      document.getElementById("scriptText").value = "";
+      document.getElementById("scriptFile").value = "";
+      document.getElementById("fileName").textContent = "";
+      document.getElementById("result").innerHTML = "";
+      document.getElementById("result").style.display = "none";
+      document.getElementById("status").textContent = "";
+      document.getElementById("scriptText").style.display = "block";
+      document.getElementById("textInputGroup").style.display = "block";
+      document.getElementById("orSeparator").style.display = "block";
+      document.getElementById("copyWrapper").style.display = "none";
+      updateProgress(0);
+      const summary = document.getElementById("resultSummary");
+      if (summary) summary.remove();
+    }
+
+    document.getElementById("scriptFile").addEventListener("change", function () {
+      const fileInput = document.getElementById("scriptFile");
+      const fileNameDisplay = document.getElementById("fileName");
+      const fileLabelText = document.getElementById("fileLabelText");
+      const scriptText = document.getElementById("scriptText");
+      const textGroup = document.getElementById("textInputGroup");
+      const result = document.getElementById("result");
+      const status = document.getElementById("status");
+      const summary = document.getElementById("resultSummary");
+      const orSep = document.getElementById("orSeparator");
+
+      // Reset display
+      result.style.display = "none";
+      result.innerHTML = "";
+      status.textContent = "";
+      updateProgress(0);
+      if (summary) summary.remove();
+
+      if (fileInput.files.length > 0) {
+        fileNameDisplay.textContent = `📄 ${fileInput.files[0].name}`;
+        fileLabelText.textContent = "Change file";
+        scriptText.value = ""; 
+        textGroup.style.display = "none";
+        if (orSep) orSep.style.display = "none";
+      } else {
+        fileNameDisplay.textContent = "";
+        fileLabelText.textContent = "Choose a file to upload";
+        textGroup.style.display = "block";
+        if (orSep) orSep.style.display = "block";
+      }
+
+      updateAnalyzeButtonState();
+    });
+
+    async function sendRequest() {
+      const textArea = document.getElementById("scriptText");
+      const fileInput = document.getElementById("scriptFile");
+      const status = document.getElementById("status");
+      const result = document.getElementById("result");
+      const analyzeBtn = document.getElementById("analyzeButton");
+      analyzeBtn.disabled = true;
+
+      const hasFile = fileInput.files.length > 0;
+      const hasText = textArea.value.trim().length > 0;
+
+      const originalScript = hasFile
+        ? await fileInput.files[0].text()
+        : textArea.value;
+
+      if (!hasFile && !hasText) {
+        status.textContent = "⚠️ Please paste a script or upload a file.";
+        return;
+      }
+
+      showSpinner(true);
+      updateProgress(30);
+      status.textContent = "";
+      result.style.display = "none";
+      document.getElementById("result").innerHTML = "";
+      document.getElementById("result").style.display = "none";
+      document.getElementById("status").textContent = "";
+      const oldSummary = document.getElementById("resultSummary");
+      if (oldSummary) oldSummary.remove();
+      
+      let body, headers = {};
+
+      if (hasFile) {
+        const form = new FormData();
+        form.append("file", fileInput.files[0]);
+        body = form;
+      } else {
+        body = JSON.stringify({ script: textArea.value });
+        headers["Content-Type"] = "application/json";
+      }
+
+      try {
+        const res = await fetch("http://localhost:8000/analyze", {
+          method: "POST",
+          headers,
+          body,
+        });
+
+        updateProgress(80);
+
+        const summaryBlock = document.createElement('div');
+        summaryBlock.id = "resultSummary";
+        summaryBlock.style = "margin: 8px 0 12px 0; font-size: 0.95rem; font-weight: 500;";
+
+        if (!res.ok) {
+          const msg = await res.text();
+          status.textContent = `❌ ${res.status} – ${msg}`;
+          updateProgress(0);
+          showSpinner(false);
+          analyzeBtn.disabled = false;
+          showToast("❌ Analysis failed: " + msg, "error");
+          return;
+        }
+
+        const json = await res.json();
+
+        const findings = json.result.findings || [];
+        const findingCount = findings.length;
+        const score = json.result.score;
+        const statusText = json.result.script === "safe" ? "Safe" : "Vulnerable";
+        const statusColor = json.result.script === "safe" ? "green" : "#b91c1c";
+
+        summaryBlock.innerHTML = `
+          🧾 <strong>${findingCount} ${findingCount === 1 ? 'finding' : 'findings'}</strong>
+          | Score: ${score}/10
+          | Status: <span class="px-2 py-1 rounded text-xs font-semibold 
+                    ${statusText === 'Safe' 
+                      ? 'bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-100' 
+                      : 'bg-red-100 text-red-800 dark:bg-red-800 dark:text-red-100'}">
+                    ${statusText}
+                  </span>
+        `;
+
+        const resultContainer = document.getElementById("result");
+        resultContainer.insertAdjacentElement("beforebegin", summaryBlock);
+
+        result.innerHTML = formatHighlightedScript(originalScript, json.result.findings);
+        result.style.display = "block";
+        document.getElementById("copyWrapper").style.display = "flex";
+        status.textContent = "✅ Analysis complete.";
+        showSpinner(false);
+        showToast("✅ Analysis complete!", "success");
+        document.getElementById("scriptText").style.display = "block";
+        document.getElementById("textInputGroup").style.display = "block";
+        updateProgress(100);
+        analyzeBtn.disabled = false
+      } catch (err) {
+        showSpinner(false);
+        showToast("❌ Network error: " + err.message, "error");
+        updateProgress(0);
+      }
+    }
+
+    function formatHighlightedScript(script, findings) {
+      const lines = script.split(/\r?\n/);
+      const markMap = new Map();
+
+      for (const f of findings) {
+        if (!markMap.has(f.line)) markMap.set(f.line, []);
+        markMap.get(f.line).push(f);
+      }
+
+      let html = `<div class="highlighted-code">`;
+      let plainText = '';
+
+      for (let i = 0; i < lines.length; i++) {
+        const lineNum = i + 1;
+        const rawLine = lines[i] || "";
+        function escapeHTML(str) {
+          return str
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#39;")
+            .replace(/`/g, "&#96;");
+        }
+
+        const escapedLine = escapeHTML(rawLine);
+
+        const findingsForLine = markMap.get(lineNum) || [];
+
+        const severity = findingsForLine.some(f => f.severity === "Error")
+          ? "Error"
+          : findingsForLine.some(f => f.severity === "Warning")
+          ? "Warning"
+          : null;
+
+        const bg = severity === "Error"
+          ? "var(--highlight-error, #fee2e2)"
+          : severity === "Warning"
+          ? "var(--highlight-warn, #8B4513)"
+          : "transparent";
+
+        const borderColor = severity === "Error"
+          ? "#f87171"
+          : severity === "Warning"
+          ? "#ecc94b"
+          : "transparent";
+
+        html += `
+          <div class="highlight-line ${
+            severity === "Error"
+              ? 'bg-red-100 border-l-4 border-red-500 dark:bg-red-900 dark:border-red-400'
+              : severity === "Warning"
+              ? 'bg-yellow-100 border-l-4 border-yellow-500 dark:bg-yellow-900 dark:border-yellow-400'
+              : ''
+          }">
+            <div class="line-number">${lineNum}</div>
+            <div class="code-text">${escapedLine || '&nbsp;'}</div>
+          </div>
+        `;
+
+        plainText += `${rawLine}\n`;
+
+        for (const f of findingsForLine) {
+          html += `
+            <div class="comment-wrapper pl-14 -mt-1 mb-1">
+              <div class="comment ${
+                f.severity.toLowerCase()
+              } pl-14 text-xs italic leading-tight">
+                💡 <strong>[${f.severity}]</strong> ${f.reason}
+              </div>
+            </div>
+          `;
+          plainText += `💡 [${f.severity}] ${f.reason}\n`;
+        }
+
+      }
+
+      html += `</div>`;
+      document.getElementById("resultText").textContent = plainText;
+      return html;
+    }
+
+  </script>
+  <!-- Spinner Overlay -->
+  <div id="spinner" class="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50 hidden">
+    <div class="animate-spin rounded-full h-12 w-12 border-4 border-blue-500 border-t-transparent"></div>
+  </div>
+  <!-- Toast Notification -->
+  <div id="toast" class="fixed top-6 left-1/2 transform -translate-x-1/2 bg-green-600 text-white px-4 py-2 rounded shadow-lg hidden transition-opacity duration-300"></div>
+
+  </body>
+</html>
