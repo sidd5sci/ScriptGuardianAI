@@ -55,19 +55,24 @@ ollama serve
 
 
 ```sh
-pip3 install pandas
-pip3 install transformers
-pip3 install peft
-pip3 install datasets
-pip3 install langchain
-pip3 install langchain_community
-pip3 install sentence-transformers
-pip3 install chromadb
-pip3 install bitsandbytes
-pip3 install -U langchain-ollama
+pip install pandas
+pip install transformers
+pip install peft
+pip install datasets
+pip install langchain
+pip install langchain_community
+pip install sentence-transformers
+pip install chromadb
+pip install bitsandbytes
+pip install -U langchain-ollama
 pip install datasets sentence-transformers requests
-pip3 install --upgrade cffi
+pip install --upgrade cffi
 pip install transformers peft datasets bitsandbytes accelerate
+pip install --upgrade "torch>=2.2" "transformers>=4.43" accelerate
+pip install --upgrade transformers accelerate
+pip install tiktoken
+pip install protobuf
+pip install sentencepiece
 
 
 pip3 install requests beautifulsoup4
@@ -85,6 +90,8 @@ export PYTHONPATH=$PWD/src
 pip install -e .
 
 python -m src.lm.Guardian tests/powershell/batch1/script_01.ps1
+python -m src.huggingface.bot 
+python -m src.ollama.Guardian tests/powershell/batch1/script_01.ps1
 ```
 ## run server
 <!-- uvicorn src.api_scanbee:app --reload -->
@@ -119,6 +126,7 @@ huggingface-cli scan-cache --verbose
 # Machine-readable JSON
 huggingface-cli scan-cache --json
 rm -rf ~/.cache/huggingface/hub/models--mistralai--Mistral-7B-Instruct-v0.2
+rm -rf ~/.cache/huggingface/hub/models--reedmayhew--gemma3-12B-claude-3.7-sonnet-reasoning-distilled
 
 
 # update hugging face
