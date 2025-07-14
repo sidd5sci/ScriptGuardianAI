@@ -1,4 +1,4 @@
-# ScaningBee
+# ScriptGuardian
 
 Offline security‑issue detector for PowerShell & Groovy scripts.  
 Uses a *local* LLM (Mistral, Claude Sonnet via Ollama, etc.) plus a **vector store** of labelled examples for k‑shot RAG.
