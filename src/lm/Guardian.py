@@ -9,12 +9,14 @@ from langchain_core.output_parsers import JsonOutputParser
 from langchain.prompts import ChatPromptTemplate
 from src.lm.LMStudio import LMStudioChat
 
-
+LLM_MODEL_OLLAMA = os.getenv("SECSCAN_MODEL", "hf.co/reedmayhew/gemma3-12B-claude-3.7-sonnet-reasoning-distilled:latest")
 LLM_MODEL = os.getenv("SECSCAN_MODEL", "claude-3.7-sonnet-reasoning-gemma3-12b")
-TEMPERATURE = float(os.getenv("SECSCAN_T", "0"))
+TEMPERATURE = float(os.getenv("SECSCAN_T", "0.1"))
+PLATFORM = os.getenc("PLATFORM", "lmstudio") # ollama, lmstudio
 
 class Guardian:
     def __init__(self, llm_model: str = LLM_MODEL, temperature: float = TEMPERATURE):
+        
         self.llm = LMStudioChat(model=llm_model, temperature=temperature)
         self.parser = JsonOutputParser()
         self.prompt_ps1 = Path("src/lm/prompts/powershell/prompt_11.md")

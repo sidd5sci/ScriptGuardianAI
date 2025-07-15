@@ -5,41 +5,28 @@ its behaviour remains unchanged.
 Usage
 -----
 $ export SECSCAN_MODEL="gemma:2b"
-$ python guardian.py my_script.ps1
+$ python -m src.lm.Guardian tests/powershell/batch1/script_01.ps1
 """
 from __future__ import annotations
 
-import json
-import os
-import re
-import sys
+import os, re, sys, json
 from pathlib import Path
 from typing import List, Dict, Any
-
 import pandas as pd
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 from langchain_core.output_parsers import JsonOutputParser
 from langchain.prompts import ChatPromptTemplate  # noqa: F401 (kept for future templating)
-
-# 👉  Our new local‑LLM client
 from src.ollama.Ollama import OllamaChat
 
-# ---------------------------------------------------------------------------
-# Configuration ----------------------------------------------------------------
-# ---------------------------------------------------------------------------
-LLM_MODEL = os.getenv("SECSCAN_MODEL", "claude-3.7-sonnet-reasoning-gemma3-12b")
-TEMPERATURE = float(os.getenv("SECSCAN_T", "0"))
-OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434/api/chat")
+LLM_MODEL = os.getenv("SECSCAN_MODEL", "hf.co/reedmayhew/gemma3-12B-claude-3.7-sonnet-reasoning-distilled:latest")
+TEMPERATURE = float(os.getenv("SECSCAN_T", "0.1"))
 
-# ---------------------------------------------------------------------------
-# Guardian ---------------------------------------------------------------------
-# ---------------------------------------------------------------------------
 class Guardian:
     """Static‑analysis helper that queries an LLM for vulnerabilities."""
 
     def __init__(self, llm_model: str = LLM_MODEL, temperature: float = TEMPERATURE):
-        # Switch from LMStudioChat ➜ OllamaChat
-        self.llm = OllamaChat(model=llm_model, temperature=temperature, url=OLLAMA_URL)
+        
+        self.llm = OllamaChat(model=llm_model, temperature=temperature)
 
         self.parser = JsonOutputParser()
         self.prompt_ps1 = Path("src/lm/prompts/powershell/prompt_11.md")
