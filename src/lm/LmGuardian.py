@@ -1,82 +1,29 @@
-"""Guardian - static analysis driver that can switch between **Ollama** and
-**LM Studio** back ends.
-
-* Pick the runtime via ``LLM_BACKEND`` env var (``"ollama"`` | ``"lmstudio"``)
-  or the ``backend=`` ctor arg.
-* Models can differ per platform:
-
-  * ``SECSCAN_MODEL_OLLAMA`` → model name for Ollama
-  * ``SECSCAN_MODEL_LMS``    → model name for LM Studio
-
-Fallback defaults are provided for both.
-
-Example
--------
-```bash
-export LLM_BACKEND=ollama                 # or lmstudio
-export SECSCAN_MODEL_OLLAMA="gemma:2b"   # only used when backend == ollama
-
-python -m src.ollama.MultiChat tests/powershell/batch1/script_01.ps1
-```
-"""
 from __future__ import annotations
-
-import json
-import os
-import re
-import sys
+import os, sys, json, re
+import requests
 from pathlib import Path
-from typing import List, Dict, Any
-
+from typing import List
 import pandas as pd
-from langchain_core.messages import (
-    SystemMessage,
-    HumanMessage,
-    AIMessage,
-    BaseMessage,
-)
-from src.lm.Ollama import OllamaChat
+from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
+from langchain_core.output_parsers import JsonOutputParser
+from langchain.prompts import ChatPromptTemplate
 from src.lm.LMStudio import LMStudioChat
 
-# ---------------------------------------------------------------------------
-# Back‑end & model configuration
-# ---------------------------------------------------------------------------
-BACKEND = os.getenv("LLM_BACKEND", "ollama").lower()  # "ollama" | "lmstudio"
+LLM_MODEL = os.getenv("SECSCAN_MODEL", "claude-3.7-sonnet-reasoning-gemma3-12b")
+TEMPERATURE = float(os.getenv("SECSCAN_T", "0.1"))
 
-DEFAULT_OLLAMA_MODEL = "hf.co/reedmayhew/gemma3-12B-claude-3.7-sonnet-reasoning-distilled:latest"
-DEFAULT_LMS_MODEL = "claude-3.7-sonnet-reasoning-gemma3-12b"
-
-OLLAMA_MODEL = os.getenv("SECSCAN_MODEL_OLLAMA", DEFAULT_OLLAMA_MODEL)
-LMS_MODEL = os.getenv("SECSCAN_MODEL_LMS", DEFAULT_LMS_MODEL)
-
-TEMPERATURE = float(os.getenv("SECSCAN_T", "0"))
-
-
-class MultiChat:
-    """Analyse PowerShell & Groovy scripts for security issues using an LLM."""
-
-    def __init__(self, backend: str = BACKEND, temperature: float = TEMPERATURE):
-        self.backend = backend
-        self.temperature = temperature
-        self.prompt = None
-
-        if backend == "ollama":
-            self.llm = OllamaChat(model=OLLAMA_MODEL, temperature=temperature)
-        elif backend == "lmstudio":
-            self.llm = LMStudioChat(model=LMS_MODEL, temperature=temperature)
-        else:
-            raise ValueError("backend must be 'ollama' or 'lmstudio'")
-
-        # --- parser & prompt paths ---
+class Guardian:
+    def __init__(self, llm_model: str = LLM_MODEL, temperature: float = TEMPERATURE):
+        
+        self.llm = LMStudioChat(model=llm_model, temperature=temperature)
+        self.parser = JsonOutputParser()
         self.prompt_ps1 = Path("src/lm/prompts/powershell/prompt_11.md")
         self.prompt_groovy = Path("src/lm/prompts/groovy/prompt_9.md")
+        self._line_map = {}
+        
+        if not all(p.is_file() for p in [self.prompt_ps1, self.prompt_groovy]):
+            sys.exit("ERR: One or more prompt files not found.")
 
-        if not (self.prompt_ps1.is_file() and self.prompt_groovy.is_file()):
-            sys.exit("ERR: prompt files missing")
-
-        self._line_map: Dict[int, bool] = {}
-
-    # ------------------------------ chat glue -----------------------------
     def _build_messages(self, code: str) -> List[dict]:
         safe_code = self.escape_braces(code)
         return [{
@@ -84,7 +31,6 @@ class MultiChat:
             "content": f"{self.prompt.strip()}\n\n<BEGIN CODE>\n{safe_code}\n<END CODE>"
         }]
 
-    # ------------------------------ chat glue -----------------------------
     def _to_chat_messages(self, lst):
         role_map = {
             "system": SystemMessage,
@@ -93,7 +39,6 @@ class MultiChat:
         }
         return [role_map[m["role"]](content=m["content"]) for m in lst]
 
-    # ------------------------------ analysis -----------------------------
     def analyse(self, code: str) -> dict:
         raw_messages = self._build_messages(code)
         chat_messages = self._to_chat_messages(raw_messages)
@@ -132,20 +77,16 @@ class MultiChat:
             "findings": clean_findings
         }
 
-    # ------------------------- analyse file ----------------------
-    def analyse_file(self, path: Path) -> Dict[str, Any]:
+    def analyse_file(self, path: Path, file_extension: str) -> dict: 
         code = path.read_text(encoding="utf-8", errors="ignore")
-        if path.suffix.lower() == ".ps1":
+        if file_extension == ".ps1":
             self.prompt = self.prompt_ps1.read_text(encoding="utf-8", errors="ignore")
-        elif path.suffix.lower() == ".groovy":
+        elif file_extension == ".groovy":
             self.prompt = self.prompt_groovy.read_text(encoding="utf-8", errors="ignore")
-        else:
-            raise ValueError("Unsupported file type")
 
         instrumented_code = self.with_line_markers(code)
         return self.analyse(instrumented_code)
 
-    # ------------------------- analyse files in the folder ----------------------
     def analyse_folder(self, folder: Path, output_excel: Path):
         rows = []
         print("Analyzing folder:", folder)
@@ -180,7 +121,6 @@ class MultiChat:
         pd.DataFrame(rows).to_excel(output_excel, index=False)
         return output_excel.name
 
-    # ----------------------------- utilities -----------------------------
     def with_line_markers(self, code: str) -> str:
         self._original_lines = code.splitlines()
         self._line_map = {}
@@ -192,16 +132,16 @@ class MultiChat:
             output_lines.append(f"<#{line_num}#> {line}")
         return "\n".join(output_lines)
 
-    def escape_braces(text: str) -> str:
+    def escape_braces(self, text: str) -> str:
         return re.sub(r"([{}])", r"{{\\1}}", text)
 
-    def _extract_json(text: str):
-        match = re.search(r"{[\s\S]*}", text)
-        if match:
-            try:
+    def _extract_json(self, text: str) -> dict | None:
+        try:
+            match = re.search(r'\{.*\}', text, re.DOTALL)
+            if match:
                 return json.loads(match.group(0))
-            except json.JSONDecodeError:
-                return None
+        except Exception:
+            pass
         return None
 
     def reformat_invalid_json(self, malformed_text: str) -> dict | None:
@@ -244,28 +184,25 @@ class MultiChat:
 
 
 
-# ---------------------------------------------------------------------------
-# CLI -----------------------------------------------------------------------
-# ---------------------------------------------------------------------------
 if __name__ == "__main__":
     if len(sys.argv) < 2:
-        sys.exit("Usage: python guardian.py <script-file-or-dir>")
+        sys.exit("Usage: python Guardian.py <script-file-or-dir>")
 
-    target = Path(sys.argv[1])
-    guardian = MultiChat()
+    input_path = Path(sys.argv[1])
+    bee = Guardian()
+    print("===========OUTPUT=================\n")
 
-    print("=========== OUTPUT =============\n")
-    if target.is_file():
-        if target.suffix.lower() not in {".ps1", ".groovy"}:
-            sys.exit("ERR: Unsupported script type → " + target.suffix)
-        print(f"--- Analyzing: {target.name} ---")
-        res = guardian.analyse_file(target)
-        print(json.dumps(res, indent=2))
-    elif target.is_dir():
-        out_xlsx = Path("guardian_batch_report.xlsx")
-        guardian.analyse_folder(target, out_xlsx)
-        print(f"✅ Batch report saved to: {out_xlsx}")
+    if input_path.is_file():
+        if input_path.suffix.lower() not in {".ps1", ".groovy"}:
+            sys.exit(f"ERR: {input_path} is not a supported script file")
+        print(f"--- Analyzing: {input_path.name} ---")
+        result = bee.analyse_file(input_path, input_path.suffix.lower())
+        print(json.dumps(result, indent=2))
+
+    elif input_path.is_dir():
+        excel_output = Path("guardian_batch_report.xlsx")
+        output_file = bee.analyse_folder(input_path, excel_output)
+        print(f"✅ Batch report saved to: {output_file}")
+
     else:
-        sys.exit("ERR: Not a valid file or directory → " + str(target))
-
-
+        sys.exit(f"ERR: {input_path} is not a valid file or directory")
