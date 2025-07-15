@@ -16,7 +16,7 @@ Example
 export LLM_BACKEND=ollama                 # or lmstudio
 export SECSCAN_MODEL_OLLAMA="gemma:2b"   # only used when backend == ollama
 
-python guardian.py scripts/myscript.ps1
+python -m src.ollama.MultiChat tests/powershell/batch1/script_01.ps1
 ```
 """
 from __future__ import annotations
@@ -58,6 +58,7 @@ class MultiChat:
     def __init__(self, backend: str = BACKEND, temperature: float = TEMPERATURE):
         self.backend = backend
         self.temperature = temperature
+        self.prompt = None
 
         if backend == "ollama":
             self.llm = OllamaChat(model=OLLAMA_MODEL, temperature=temperature)
@@ -76,49 +77,124 @@ class MultiChat:
         self._line_map: Dict[int, bool] = {}
 
     # ------------------------------ chat glue -----------------------------
-    @staticmethod
-    def _to_chat_messages(lst: List[Dict[str, str]]):
-        role_map = {"system": SystemMessage, "user": HumanMessage, "assistant": AIMessage}
+    def _build_messages(self, code: str) -> List[dict]:
+        safe_code = self.escape_braces(code)
+        return [{
+            "role": "user",
+            "content": f"{self.prompt.strip()}\n\n<BEGIN CODE>\n{safe_code}\n<END CODE>"
+        }]
+
+    # ------------------------------ chat glue -----------------------------
+    def _to_chat_messages(self, lst):
+        role_map = {
+            "system": SystemMessage,
+            "user": HumanMessage,
+            "assistant": AIMessage
+        }
         return [role_map[m["role"]](content=m["content"]) for m in lst]
 
     # ------------------------------ analysis -----------------------------
-    def analyse(self, prompt: str) -> Dict[str, Any]:
-        chat_messages = self._to_chat_messages([
-            {"role": "user", "content": prompt},
-        ])
+    def analyse(self, code: str) -> dict:
+        raw_messages = self._build_messages(code)
+        chat_messages = self._to_chat_messages(raw_messages)
         response = self.llm.invoke(chat_messages)
-        raw_json = self._extract_json(response.content) or {}
-        return raw_json
 
-    # ------------------------- file & folder helpers ----------------------
+        raw_json = self._extract_json(response.content)
+
+        if not raw_json:
+            print(" ⚠️ Invalid JSON. Retrying with reformatting prompt...")
+            raw_json = self.reformat_invalid_json(response.content)
+        
+        if not raw_json:
+            return {"error": "LLM returned non-JSON format twice", "raw": raw_json}
+
+        # print("DEBUG Response:", raw_json, type(raw_json))
+        
+
+        findings = raw_json.get("findings", [])
+        clean_findings = []
+
+        for f in findings:
+            line_no = f.get("line")
+            if isinstance(line_no, str) and line_no.startswith("<#") and line_no.endswith("#>"):
+                try:
+                    line_no = int(line_no[2:-2])
+                    f["line"] = line_no
+                except ValueError:
+                    f["line"] = -1
+            if isinstance(line_no, int) and not self._line_map.get(line_no, False):
+                clean_findings.append(f)
+
+        score = 10 - sum(1 for f in clean_findings if f["severity"].lower() == "error")
+        return {
+            "script": "safe" if score == 10 else "vulnerable",
+            "score": score,
+            "findings": clean_findings
+        }
+
+    # ------------------------- analyse file ----------------------
     def analyse_file(self, path: Path) -> Dict[str, Any]:
         code = path.read_text(encoding="utf-8", errors="ignore")
         if path.suffix.lower() == ".ps1":
-            prompt_tpl = self.prompt_ps1.read_text(encoding="utf-8")
+            self.prompt = self.prompt_ps1.read_text(encoding="utf-8", errors="ignore")
         elif path.suffix.lower() == ".groovy":
-            prompt_tpl = self.prompt_groovy.read_text(encoding="utf-8")
+            self.prompt = self.prompt_groovy.read_text(encoding="utf-8", errors="ignore")
         else:
             raise ValueError("Unsupported file type")
 
-        instrumented = self.with_line_markers(code)
-        prompt = f"{prompt_tpl}\n\n<BEGIN CODE>\n{self.escape_braces(instrumented)}\n<END CODE>"
-        return self.analyse(prompt)
+        instrumented_code = self.with_line_markers(code)
+        return self.analyse(instrumented_code)
+
+    # ------------------------- analyse files in the folder ----------------------
+    def analyse_folder(self, folder: Path, output_excel: Path):
+        rows = []
+        print("Analyzing folder:", folder)
+
+        for file in sorted(folder.glob("*")):
+            if file.suffix.lower() not in {".ps1", ".groovy", ".txt"}:
+                continue
+
+            # Select appropriate prompt
+            prompt = prompt_ps1
+            if file.suffix.lower() == ".groovy":
+                prompt = prompt_groovy
+            
+            print("\nPrompt selected:", prompt)
+            print(f"--- Analyzing: {file.name} ---")
+            try:
+                result = self.analyse_file(file, prompt)
+                output = json.dumps(result, indent=2)
+                print(output)
+                status = result.get("script", "error")
+            except Exception as e:
+                output = f"ERROR: {e}"
+                status = "error"
+
+            rows.append({
+                "script": file.read_text(encoding="utf-8", errors="ignore"),
+                "output": output,
+                "vulnerable/safe": status,
+                "expected": ""
+            })
+
+        pd.DataFrame(rows).to_excel(output_excel, index=False)
+        return output_excel.name
 
     # ----------------------------- utilities -----------------------------
     def with_line_markers(self, code: str) -> str:
         self._original_lines = code.splitlines()
         self._line_map = {}
         output_lines = []
-        for i, line in enumerate(self._original_lines, start=1):
-            self._line_map[i] = line.strip().startswith("#")
-            output_lines.append(f"<#{i}#> {line}")
+        for i, line in enumerate(self._original_lines):
+            line_num = i + 1
+            is_comment = line.strip().startswith("#")
+            self._line_map[line_num] = is_comment
+            output_lines.append(f"<#{line_num}#> {line}")
         return "\n".join(output_lines)
 
-    @staticmethod
     def escape_braces(text: str) -> str:
         return re.sub(r"([{}])", r"{{\\1}}", text)
 
-    @staticmethod
     def _extract_json(text: str):
         match = re.search(r"{[\s\S]*}", text)
         if match:
@@ -127,6 +203,45 @@ class MultiChat:
             except json.JSONDecodeError:
                 return None
         return None
+
+    def reformat_invalid_json(self, malformed_text: str) -> dict | None:
+        retry_prompt = (
+            "You are a JSON validation assistant. The next input is supposed to be a valid JSON object, "
+            "but it may include markdown formatting or additional commentary. "
+            "Return ONLY the corrected JSON object. "
+            "DO NOT include explanations, analysis, prose, code blocks, or anything else. "
+            "Your output MUST begin with '{' and end with '}'."
+        )
+        retry_messages = [
+            {"role": "user", "content": retry_prompt+"\n\n"+malformed_text.strip()}
+        ]
+        chat_messages = self._to_chat_messages(retry_messages)
+        retry_response = self.llm.invoke(chat_messages)
+        # print("Reformated response:\n", retry_response.content, type(retry_response),"\n")
+
+        try:
+            # Step 1: Remove ```json or ``` wrappers if present
+            cleaned = retry_response.content.strip()
+            cleaned = re.sub(r"^```(?:json)?\s*", "", cleaned, flags=re.IGNORECASE | re.MULTILINE)
+            cleaned = re.sub(r"\s*```$", "", cleaned, flags=re.MULTILINE)
+            
+            # Step 2: Extract JSON block (just in case)
+            match = re.search(r'{[\s\S]*}', cleaned)
+            if not match:
+                print(" No JSON block found in response")
+                return None
+
+            json_str = match.group(0)
+            # Step 3: Escape invalid backslashes
+            json_str = re.sub(r'(?<!\\)\\(?![\\/"bfnrtu])', r'\\\\', json_str)
+            # Step 4: Parse to dict
+            return json.loads(json_str)
+
+        except Exception as e:
+            print(f" Failed to parse JSON: {e}")
+        
+        return None
+
 
 
 # ---------------------------------------------------------------------------
