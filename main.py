@@ -62,7 +62,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
 # ---------------------------------------------------------------------------
 # Pydantic models
 # ---------------------------------------------------------------------------
@@ -117,6 +116,88 @@ async def analyze_script(request: Request, file: UploadFile | None = File(None))
     verdict = await analyse_text(script_text, script_type)
     print(f"[analyze_script] Analysis complete. Verdict: {verdict.get('script', 'unknown')}")
     return {"result": verdict}
+
+@app.post("/simulate", response_model=VerdictOut)
+async def analyze_script(request: Request, file: UploadFile | None = File(None)):
+    script_text = None
+    script_type = None
+    
+    try:
+        # Attempt to parse JSON body first
+        body = await request.json()
+        script_text = body.get("script", "").strip()
+        script_type = body.get("scriptType", "powershell")
+        if script_text:
+            print("[analyze_script] Using script from JSON body")
+    except Exception:
+        # JSON body not present or unreadable
+        pass
+
+    # If no script in JSON, try file upload
+    if not script_text and file:
+        script_text = (await file.read()).decode("utf-8", errors="ignore").strip()
+        print("[analyze_script] Using script from uploaded file")
+
+    if not script_text:
+        raise HTTPException(400, "No script provided via JSON body or uploaded file")
+
+    return {
+    "result": {
+        "script": "vulnerable",
+        "score": 8,
+        "findings": [
+            {
+                "line": 2,
+                "severity": "Warning",
+                "statement": "$filespath = '##win.monitored.files##';",
+                "reason": "Sensitive variable declared but not used in a risky sink",
+                "recommendation": "Use this variable only for internal authentication purposes within the script",
+                "code_suggestion": "$filespath = 'internal-only-path'"
+            },
+            {
+                "line": 3,
+                "severity": "Warning",
+                "statement": "$hostname = '##system.hostname##';",
+                "reason": "Sensitive variable declared but not used in a risky sink",
+                "recommendation": "Use this variable only for internal authentication purposes within the script",
+                "code_suggestion": "$hostname = 'internal-only-hostname'"
+            },
+            {
+                "line": 4,
+                "severity": "Warning",
+                "statement": "$user = '##wmi.user##';",
+                "reason": "Sensitive variable declared but not used in a risky sink",
+                "recommendation": "Use this variable only for internal authentication purposes within the script",
+                "code_suggestion": "$user = 'internal-only-user'"
+            },
+            {
+                "line": 5,
+                "severity": "Warning",
+                "statement": "$pass = '##wmi.pass##';",
+                "reason": "Sensitive variable declared but not used in a risky sink",
+                "recommendation": "Use this variable only for internal authentication purposes within the script",
+                "code_suggestion": "$pass = 'internal-only-password'"
+            },
+            {
+                "line": 14,
+                "severity": "Error",
+                "statement": "Set-Content -Path \"sensitive.txt\" -Value $testVar",
+                "reason": "Sensitive variable is used in a risky sink (file output)",
+                "recommendation": "Remove this line and ensure sensitive variables are not written to files",
+                "code_suggestion": "Set-Content -Path \"internal-log.txt\" -Value 'Authentication successful'"
+            },
+            {
+                "line": 30,
+                "severity": "Error",
+                "statement": "Set-Content -Path \"sensitive.txt\" -Value $new1Var",
+                "reason": "Sensitive variable is used in a risky sink (file output)",
+                "recommendation": "Remove this line and ensure sensitive variables are not written to files",
+                "code_suggestion": "Set-Content -Path \"internal-log.txt\" -Value 'System initialized'"
+            }
+        ]
+    }
+}
+
 
 @app.get("/ping")
 async def ping():

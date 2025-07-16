@@ -3,11 +3,19 @@
 Offline security‑issue detector for PowerShell & Groovy scripts.  
 Uses a *local* LLM (Mistral, Claude Sonnet via Ollama, etc.) plus a **vector store** of labelled examples for k‑shot RAG.
 
+## future scope
+* Can alayse script behaviour (give error for prohebited opration under core data sources, such as kill a proccess, modify file)
+* Give Code suggation for error and warning lines 
+* Reccomanded  opration 
+* file upload analysis for datasources and modules
+* 
+*
+
 ## Quick start
 
 ```bash
 git clone <repo>
-cd ScaningBee
+cd Script Guardian
 
 brew update
 brew install pyenv
@@ -50,26 +58,9 @@ ollama serve
 # 3. Evaluate
 
 
-```sh
-pip3 install pandas
-pip3 install transformers
-pip3 install peft
-pip3 install datasets
-pip3 install langchain
-pip3 install langchain_community
-pip3 install sentence-transformers
-pip3 install chromadb
-pip3 install bitsandbytes
-pip3 install -U langchain-ollama
-pip install datasets sentence-transformers requests
-pip3 install --upgrade cffi
-
-pip3 install requests beautifulsoup4
-
-
-pip3 install fastapi uvicorn
 
 # activate the same venv where you run DataEmbed.py
+```sh
 pip install --upgrade "langchain-community>=0.0.28"
 
 ```
@@ -83,20 +74,4 @@ python -m Ollama.scanBee2 tests/test.ps1
 python src/ollama/DataEmbed.py /Users/siddhartha.singh/scaningBee/resources
 python src/ollama/ScanBee.py /Users/siddhartha.singh/scaningBee/tests/test.ps1
 ```
-## run server
-<!-- uvicorn src.api_scanbee:app --reload -->
-export PYTHONPATH=$PWD/src     
-uvicorn main:app --reload
 
-chack port uses
-lsof -i :8000
-uvicorn main:app --reload
-
-# 1. raw JSON
-curl -X POST http://127.0.0.1:8000/analyze \
-     -H "Content-Type: application/json" \
-     -d '{"script": "Write-Host \"password is $pass\""}'
-
-# 2. file upload
-curl -X POST http://127.0.0.1:8000/analyze \
-     -F "file=@tests/test.ps1"

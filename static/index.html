@@ -102,6 +102,49 @@
         outline: none;
       }
 
+      .editor-container {
+        position: relative;
+        font-family: monospace;
+        line-height: 1.4;
+      }
+
+      .highlighted-code {
+        position: absolute;
+        top: 0; left: 40px;
+        width: 100%;
+        color: black;
+        min-height: 180px;
+        padding: 0px 10px;
+        /* white-space: pre-wrap; */
+        background: #f9f9f9;
+        /* border: 1px solid #ccc; */
+        /* border-radius: 4px; */
+        z-index: 0;
+        pointer-events: none;
+      }
+
+      .editor-textarea {
+        position: relative;
+        z-index: 1;
+        width: 100%;
+        min-height: 180px;
+        padding: 0.5rem;
+        background: transparent;
+        color: black;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        font-family: monospace;
+        line-height: 1.4;
+        resize: vertical;
+      }
+      .line-highlight-error {
+        background: #ffe2e2;
+      }
+      .line-highlight-warning {
+        background: #fff6cc;
+      }
+
+
     </style>
   </head>
   <body class="bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-100 transition-colors duration-300">
@@ -123,12 +166,13 @@
           </label>
           <div id="container" class="container">
             <div id="line-numbers" class="container__lines">1</div>
+            <pre id="highlightedCode" class="highlighted-code text-sm"></pre>
             <textarea
               id="scriptText"
               rows="8"
               placeholder="# Paste script here..."
               class="container__textarea w-full border border-gray-300 dark:border-gray-700 rounded-lg px-4 py-2 text-sm font-mono resize-y bg-white dark:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              oninput="updateLineNumbers(); updateAnalyzeButtonState(); toggleOrSeparator();"
+              oninput="syncHighlight(); updateLineNumbers(); updateAnalyzeButtonState(); toggleOrSeparator();"
             ></textarea>
           </div>
         </div>
@@ -185,19 +229,34 @@
 
     <script>
 
-      // document.addEventListener('DOMContentLoaded', () => {
-      //     const textarea = document.getElementById('scriptText');
-      //     const lineNumbersEle = document.getElementById('line-numbers');
+      function syncHighlight() {
+        const input = document.getElementById("scriptText");
+        const highlight = document.getElementById("highlightedCode");
 
-      //     const displayLineNumbers = () => {
-      //         const lines = textarea.value.split('\n');
-      //         lineNumbersEle.innerHTML = Array.from({
-      //             length: lines.length,
-      //         }, (_, i) => `<div>${i + 1}</div>`).join('');
-      //     };
+        const text = input.value || "";
+        const lines = text.split("\n").map(line => `<div>${line || "&nbsp;"}</div>`).join("");
+        highlight.innerHTML = lines;
+      }
 
-      //     displayLineNumbers();
-      // });
+      // Highlight based on findings
+      function highlightFindings(findings) {
+        const input = document.getElementById("scriptText");
+        const highlight = document.getElementById("highlightedCode");
+
+        const lines = input.value.split("\n");
+        const highlights = [];
+
+        for (let i = 0; i < lines.length; i++) {
+          const match = findings.find(f => f.line === i + 1);
+          let cssClass = "";
+          if (match?.severity === "Error") cssClass = "line-highlight-error";
+          if (match?.severity === "Warning") cssClass = "line-highlight-warning";
+          const escaped = lines[i] ? lines[i].replace(/</g, "&lt;").replace(/>/g, "&gt;") : "&nbsp;";
+          highlights.push(`<div class="${cssClass}">${escaped}</div>`);
+        }
+
+        highlight.innerHTML = highlights.join("");
+      }
 
       function updateLineNumbers() {
         const textarea = document.getElementById("scriptText");
@@ -211,9 +270,6 @@
         document.getElementById("line-numbers").scrollTop = this.scrollTop;
       });
 
-      // Ensure it updates on page load too
-      document.addEventListener("DOMContentLoaded", updateLineNumbers);
-
       function toggleTheme() {
         const html = document.documentElement;
         const isDark = html.classList.toggle('dark');
@@ -224,6 +280,7 @@
       window.addEventListener('DOMContentLoaded', () => {
         const saved = localStorage.getItem('theme');
         if (saved === 'dark') document.documentElement.classList.add('dark');
+        updateLineNumbers();
       });
 
       function copyResults() {
@@ -236,7 +293,6 @@
         showToast("Copied to clipboard!");
       }
 
-
       function toggleOrSeparator() {
         const script = document.getElementById("scriptText").value.trim();
         const file = document.getElementById("scriptFile").files.length > 0;
@@ -244,272 +300,258 @@
         orSep.style.display = (script || file) ? "none" : "block";
       }
 
-    function updateAnalyzeButtonState() {
-      const analyzeBtn = document.getElementById("analyzeButton");
-      const scriptText = document.getElementById("scriptText").value.trim();
-      const fileSelected = document.getElementById("scriptFile").files.length > 0;
-      analyzeBtn.disabled = !(scriptText || fileSelected);
-    }
-
-    function updateProgress(percent) {
-      const bar = document.getElementById("progressBar");
-      const container = document.getElementById("progress");
-      bar.style.width = percent + "%";
-      container.style.display = "block";
-    }
-
-    function showSpinner(show) {
-      document.getElementById("spinner").classList.toggle("hidden", !show);
-    }
-
-    function showToast(message, type = 'success') {
-      const toast = document.getElementById("toast");
-      toast.textContent = message;
-      toast.className = `fixed bottom-6 right-6 px-4 py-2 rounded shadow-lg text-white transition-opacity duration-300 ${type === 'error' ? 'bg-red-600' : 'bg-green-600'}`;
-      toast.classList.remove("hidden");
-      setTimeout(() => toast.classList.add("hidden"), 3000);
-    }
-
-    function clearAll() {
-      document.getElementById("scriptText").value = "";
-      document.getElementById("scriptFile").value = "";
-      document.getElementById("fileName").textContent = "";
-      document.getElementById("result").innerHTML = "";
-      document.getElementById("result").style.display = "none";
-      document.getElementById("status").textContent = "";
-      document.getElementById("scriptText").style.display = "block";
-      document.getElementById("textInputGroup").style.display = "block";
-      document.getElementById("orSeparator").style.display = "block";
-      document.getElementById("copyWrapper").style.display = "none";
-      updateProgress(0);
-      const summary = document.getElementById("resultSummary");
-      if (summary) summary.remove();
-    }
-
-    document.getElementById("scriptFile").addEventListener("change", function () {
-      const fileInput = document.getElementById("scriptFile");
-      const fileNameDisplay = document.getElementById("fileName");
-      const fileLabelText = document.getElementById("fileLabelText");
-      const scriptText = document.getElementById("scriptText");
-      const textGroup = document.getElementById("textInputGroup");
-      const result = document.getElementById("result");
-      const status = document.getElementById("status");
-      const summary = document.getElementById("resultSummary");
-      const orSep = document.getElementById("orSeparator");
-
-      // Reset display
-      result.style.display = "none";
-      result.innerHTML = "";
-      status.textContent = "";
-      updateProgress(0);
-      if (summary) summary.remove();
-
-      if (fileInput.files.length > 0) {
-        fileNameDisplay.textContent = `📄 ${fileInput.files[0].name}`;
-        fileLabelText.textContent = "Change file";
-        scriptText.value = ""; 
-        textGroup.style.display = "none";
-        if (orSep) orSep.style.display = "none";
-      } else {
-        fileNameDisplay.textContent = "";
-        fileLabelText.textContent = "Choose a file to upload";
-        textGroup.style.display = "block";
-        if (orSep) orSep.style.display = "block";
+      function updateAnalyzeButtonState() {
+        const analyzeBtn = document.getElementById("analyzeButton");
+        const scriptText = document.getElementById("scriptText").value.trim();
+        const fileSelected = document.getElementById("scriptFile").files.length > 0;
+        analyzeBtn.disabled = !(scriptText || fileSelected);
       }
 
-      updateAnalyzeButtonState();
-    });
-
-    async function sendRequest() {
-      const textArea = document.getElementById("scriptText");
-      const fileInput = document.getElementById("scriptFile");
-      const status = document.getElementById("status");
-      const result = document.getElementById("result");
-      const scriptType = document.getElementById("scriptType");
-      const analyzeBtn = document.getElementById("analyzeButton");
-      analyzeBtn.disabled = true;
-
-      const hasFile = fileInput.files.length > 0;
-      const hasText = textArea.value.trim().length > 0;
-
-      const originalScript = hasFile
-        ? await fileInput.files[0].text()
-        : textArea.value;
-
-      if (!hasFile && !hasText) {
-        status.textContent = "⚠️ Please paste a script or upload a file.";
-        return;
+      function updateProgress(percent) {
+        const bar = document.getElementById("progressBar");
+        const container = document.getElementById("progress");
+        bar.style.width = percent + "%";
+        container.style.display = "block";
       }
 
-      if(scriptType.value == "" || scriptType.value == null){
-        status.textContent = "⚠️ Please select the script type.";
-        return;
+      function showSpinner(show) {
+        document.getElementById("spinner").classList.toggle("hidden", !show);
       }
 
-      showSpinner(true);
-      updateProgress(30);
-      status.textContent = "";
-      result.style.display = "none";
-      document.getElementById("result").innerHTML = "";
-      document.getElementById("result").style.display = "none";
-      document.getElementById("status").textContent = "";
-      const oldSummary = document.getElementById("resultSummary");
-      if (oldSummary) oldSummary.remove();
-      
-      let body, headers = {};
-
-      if (hasFile) {
-        const form = new FormData();
-        form.append("file", fileInput.files[0]);
-        body = form;
-      } else {
-        body = JSON.stringify({ script: textArea.value, scriptType: scriptType.value });
-        headers["Content-Type"] = "application/json";
+      function showToast(message, type = 'success') {
+        const toast = document.getElementById("toast");
+        toast.textContent = message;
+        toast.className = `fixed bottom-6 right-6 px-4 py-2 rounded shadow-lg text-white transition-opacity duration-300 ${type === 'error' ? 'bg-red-600' : 'bg-green-600'}`;
+        toast.classList.remove("hidden");
+        setTimeout(() => toast.classList.add("hidden"), 3000);
       }
 
-      try {
-        const res = await fetch("http://localhost:8000/analyze", {
-          method: "POST",
-          headers,
-          body,
-        });
+      function clearAll() {
+        document.getElementById("scriptText").value = "";
+        document.getElementById("scriptFile").value = "";
+        document.getElementById("fileName").textContent = "";
+        document.getElementById("result").innerHTML = "";
+        document.getElementById("result").style.display = "none";
+        document.getElementById("status").textContent = "";
+        document.getElementById("scriptText").style.display = "block";
+        document.getElementById("textInputGroup").style.display = "block";
+        document.getElementById("orSeparator").style.display = "block";
+        document.getElementById("copyWrapper").style.display = "none";
+        updateProgress(0);
+        const summary = document.getElementById("resultSummary");
+        if (summary) summary.remove();
+      }
 
-        updateProgress(80);
+      document.getElementById("scriptFile").addEventListener("change", function () {
+        const fileInput = document.getElementById("scriptFile");
+        const fileNameDisplay = document.getElementById("fileName");
+        const fileLabelText = document.getElementById("fileLabelText");
+        const scriptText = document.getElementById("scriptText");
+        const textGroup = document.getElementById("textInputGroup");
+        const result = document.getElementById("result");
+        const status = document.getElementById("status");
+        const summary = document.getElementById("resultSummary");
+        const orSep = document.getElementById("orSeparator");
 
-        const summaryBlock = document.createElement('div');
-        summaryBlock.id = "resultSummary";
-        summaryBlock.style = "margin: 8px 0 12px 0; font-size: 0.95rem; font-weight: 500;";
+        // Reset display
+        result.style.display = "none";
+        result.innerHTML = "";
+        status.textContent = "";
+        updateProgress(0);
+        if (summary) summary.remove();
 
-        if (!res.ok) {
-          const msg = await res.text();
-          status.textContent = `❌ ${res.status} – ${msg}`;
-          updateProgress(0);
-          showSpinner(false);
-          analyzeBtn.disabled = false;
-          showToast("❌ Analysis failed: " + msg, "error");
+        if (fileInput.files.length > 0) {
+          fileNameDisplay.textContent = `📄 ${fileInput.files[0].name}`;
+          fileLabelText.textContent = "Change file";
+          scriptText.value = ""; 
+          textGroup.style.display = "none";
+          if (orSep) orSep.style.display = "none";
+        } else {
+          fileNameDisplay.textContent = "";
+          fileLabelText.textContent = "Choose a file to upload";
+          textGroup.style.display = "block";
+          if (orSep) orSep.style.display = "block";
+        }
+
+        updateAnalyzeButtonState();
+      });
+
+      async function sendRequest() {
+        const textArea = document.getElementById("scriptText");
+        const fileInput = document.getElementById("scriptFile");
+        const status = document.getElementById("status");
+        const result = document.getElementById("result");
+        const scriptType = document.getElementById("scriptType");
+        const analyzeBtn = document.getElementById("analyzeButton");
+        analyzeBtn.disabled = true;
+
+        const hasFile = fileInput.files.length > 0;
+        const hasText = textArea.value.trim().length > 0;
+
+        const originalScript = hasFile
+          ? await fileInput.files[0].text()
+          : textArea.value;
+
+        if (!hasFile && !hasText) {
+          status.textContent = "⚠️ Please paste a script or upload a file.";
           return;
         }
 
-        const json = await res.json();
-
-        const findings = json.result.findings || [];
-        const findingCount = findings.length;
-        const score = json.result.score;
-        const statusText = json.result.script === "safe" ? "Safe" : "Vulnerable";
-        const statusColor = json.result.script === "safe" ? "green" : "#b91c1c";
-
-        summaryBlock.innerHTML = `
-          🧾 <strong>${findingCount} ${findingCount === 1 ? 'finding' : 'findings'}</strong>
-          | Score: ${score}/10
-          | Status: <span class="px-2 py-1 rounded text-xs font-semibold 
-                    ${statusText === 'Safe' 
-                      ? 'bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-100' 
-                      : 'bg-red-100 text-red-800 dark:bg-red-800 dark:text-red-100'}">
-                    ${statusText}
-                  </span>
-        `;
-
-        const resultContainer = document.getElementById("result");
-        resultContainer.insertAdjacentElement("beforebegin", summaryBlock);
-
-        result.innerHTML = formatHighlightedScript(originalScript, json.result.findings);
-        result.style.display = "block";
-        document.getElementById("copyWrapper").style.display = "flex";
-        status.textContent = "✅ Analysis complete.";
-        showSpinner(false);
-        showToast("✅ Analysis complete!", "success");
-        document.getElementById("scriptText").style.display = "block";
-        document.getElementById("textInputGroup").style.display = "block";
-        updateProgress(100);
-        analyzeBtn.disabled = false
-      } catch (err) {
-        showSpinner(false);
-        showToast("❌ Network error: " + err.message, "error");
-        updateProgress(0);
-      }
-    }
-
-    function formatHighlightedScript(script, findings) {
-      const lines = script.split(/\r?\n/);
-      const markMap = new Map();
-
-      for (const f of findings) {
-        if (!markMap.has(f.line)) markMap.set(f.line, []);
-        markMap.get(f.line).push(f);
-      }
-
-      let html = `<div class="highlighted-code">`;
-      let plainText = '';
-
-      for (let i = 0; i < lines.length; i++) {
-        const lineNum = i + 1;
-        const rawLine = lines[i] || "";
-        function escapeHTML(str) {
-          return str
-            .replace(/&/g, "&amp;")
-            .replace(/</g, "&lt;")
-            .replace(/>/g, "&gt;")
-            .replace(/"/g, "&quot;")
-            .replace(/'/g, "&#39;")
-            .replace(/`/g, "&#96;");
+        if (!scriptType.value) {
+          status.textContent = "⚠️ Please select the script type.";
+          return;
         }
 
-        const escapedLine = escapeHTML(rawLine);
+        showSpinner(true);
+        updateProgress(30);
+        status.textContent = "";
+        result.style.display = "none";
+        result.innerHTML = "";
+        document.getElementById("status").textContent = "";
+        const oldSummary = document.getElementById("resultSummary");
+        if (oldSummary) oldSummary.remove();
 
-        const findingsForLine = markMap.get(lineNum) || [];
+        let body, headers = {};
 
-        const severity = findingsForLine.some(f => f.severity === "Error")
-          ? "Error"
-          : findingsForLine.some(f => f.severity === "Warning")
-          ? "Warning"
-          : null;
+        if (hasFile) {
+          const form = new FormData();
+          form.append("file", fileInput.files[0]);
+          form.append("scriptType", scriptType.value);  // pass scriptType in multipart
+          body = form;
+          headers = {};  // DO NOT set Content-Type manually for FormData
+        } else {
+          body = JSON.stringify({
+            script: textArea.value,
+            scriptType: scriptType.value
+          });
+          headers["Content-Type"] = "application/json";
+        }
 
-        const bg = severity === "Error"
-          ? "var(--highlight-error, #fee2e2)"
-          : severity === "Warning"
-          ? "var(--highlight-warn, #8B4513)"
-          : "transparent";
+        try {
+          console.log(body, headers);
+          const res = await fetch("http://localhost:8080/simulate", {
+            method: "POST",
+            headers,
+            body,
+          });
+          // console.log(res);
+          if (!res.ok) {
+            const msg = await res.text();
+            status.textContent = `❌ ${res.status} – ${msg}`;
+            updateProgress(0);
+            showSpinner(false);
+            analyzeBtn.disabled = false;
+            showToast("❌ Analysis failed: " + msg, "error");
+            return;
+          }
 
-        const borderColor = severity === "Error"
-          ? "#f87171"
-          : severity === "Warning"
-          ? "#ecc94b"
-          : "transparent";
+          updateProgress(80);
 
-        html += `
-          <div class="highlight-line ${
-            severity === "Error"
-              ? 'bg-red-100 border-l-4 border-red-500 dark:bg-red-900 dark:border-red-400'
-              : severity === "Warning"
-              ? 'bg-yellow-100 border-l-4 border-yellow-500 dark:bg-yellow-900 dark:border-yellow-400'
-              : ''
-          }">
-            <div class="line-number">${lineNum}</div>
-            <div class="code-text">${escapedLine || '&nbsp;'}</div>
-          </div>
-        `;
+          const json = await res.json();
+          const findings = json.result.findings || [];
+          const findingCount = findings.length;
+          const score = json.result.score;
+          const statusText = json.result.script === "safe" ? "Safe" : "Vulnerable";
+          
+          highlightFindings(json.result.findings || []);
+          
+          status.textContent = "✅ Analysis complete.";
+          showToast("✅ Analysis complete!", "success");
+          document.getElementById("scriptText").style.display = "block";
+          document.getElementById("textInputGroup").style.display = "block";
+          updateProgress(100);
+          analyzeBtn.disabled = false;
+          showSpinner(false);
 
-        plainText += `${rawLine}\n`;
+        } catch (err) {
+          showSpinner(false);
+          showToast("❌ Network error: " + err.message, "error");
+          updateProgress(0);
+          analyzeBtn.disabled = false;
+        }
+      }
 
-        for (const f of findingsForLine) {
+      function formatHighlightedScript(script, findings) {
+        const lines = script.split(/\r?\n/);
+        const markMap = new Map();
+
+        for (const f of findings) {
+          if (!markMap.has(f.line)) markMap.set(f.line, []);
+          markMap.get(f.line).push(f);
+        }
+
+        let html = `<div class="highlighted-code">`;
+        let plainText = '';
+
+        for (let i = 0; i < lines.length; i++) {
+          const lineNum = i + 1;
+          const rawLine = lines[i] || "";
+          function escapeHTML(str) {
+            return str
+              .replace(/&/g, "&amp;")
+              .replace(/</g, "&lt;")
+              .replace(/>/g, "&gt;")
+              .replace(/"/g, "&quot;")
+              .replace(/'/g, "&#39;")
+              .replace(/`/g, "&#96;");
+          }
+
+          const escapedLine = escapeHTML(rawLine);
+
+          const findingsForLine = markMap.get(lineNum) || [];
+
+          const severity = findingsForLine.some(f => f.severity === "Error")
+            ? "Error"
+            : findingsForLine.some(f => f.severity === "Warning")
+            ? "Warning"
+            : null;
+
+          const bg = severity === "Error"
+            ? "var(--highlight-error, #fee2e2)"
+            : severity === "Warning"
+            ? "var(--highlight-warn, #8B4513)"
+            : "transparent";
+
+          const borderColor = severity === "Error"
+            ? "#f87171"
+            : severity === "Warning"
+            ? "#ecc94b"
+            : "transparent";
+
           html += `
-            <div class="comment-wrapper pl-14 -mt-1 mb-1">
-              <div class="comment ${
-                f.severity.toLowerCase()
-              } pl-14 text-xs italic leading-tight">
-                💡 <strong>[${f.severity}]</strong> ${f.reason}
-              </div>
+            <div class="highlight-line ${
+              severity === "Error"
+                ? 'bg-red-100 border-l-4 border-red-500 dark:bg-red-900 dark:border-red-400'
+                : severity === "Warning"
+                ? 'bg-yellow-100 border-l-4 border-yellow-500 dark:bg-yellow-900 dark:border-yellow-400'
+                : ''
+            }">
+              <div class="line-number">${lineNum}</div>
+              <div class="code-text">${escapedLine || '&nbsp;'}</div>
             </div>
           `;
-          plainText += `💡 [${f.severity}] ${f.reason}\n`;
+
+          plainText += `${rawLine}\n`;
+
+          for (const f of findingsForLine) {
+            html += `
+              <div class="comment-wrapper pl-14 -mt-1 mb-1">
+                <div class="comment ${
+                  f.severity.toLowerCase()
+                } pl-14 text-xs italic leading-tight">
+                  💡 <strong>[${f.severity}]</strong> ${f.reason}
+                </div>
+              </div>
+            `;
+            plainText += `💡 [${f.severity}] ${f.reason}\n`;
+          }
+
         }
 
+        html += `</div>`;
+        document.getElementById("resultText").textContent = plainText;
+        return html;
       }
-
-      html += `</div>`;
-      document.getElementById("resultText").textContent = plainText;
-      return html;
-    }
 
   </script>
   <!-- Spinner Overlay -->
