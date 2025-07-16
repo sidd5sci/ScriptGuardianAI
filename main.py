@@ -1,89 +1,123 @@
-# main.py  (project root)
-import asyncio, json
+"""FastAPI entry point for script Guardian  - now backed by the revamped **Guardian**
+class that can talk to either Ollama or LM Studio.
+
+Environment variables
+---------------------
+LLM_BACKEND              "ollama" (default) | "lmstudio"
+SECSCAN_MODEL_OLLAMA     model name when backend is ollama
+SECSCAN_MODEL_LMS        model name when backend is lmstudio
+SECSCAN_T                temperature (float, default 0.0)
+
+Run
+---
+python -m uvicorn main:app --reload --port 8080
+
+$ uvicorn main:app --reload --port 8080
+$ uvicorn main:app --reload
+"""
+from __future__ import annotations
+
+import asyncio
+import os
 from pathlib import Path
-from typing import Dict
-from typing import Any
+from typing import Any, Dict, Optional
 
 from fastapi import FastAPI, UploadFile, File, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
-from pydantic import BaseModel
-from typing import Optional
 from fastapi.staticfiles import StaticFiles
-import sys, pathlib
+from pydantic import BaseModel
+
+import sys
+import pathlib
+
+# add src to PYTHONPATH
 sys.path.insert(0, str(pathlib.Path(__file__).parent / "src"))
-from src.lm.Guardian import Guardian   
 
+from src.lm.Guardian import Guardian  # noqa: E402  pylint: disable=wrong-import-position
 
+# ---------------------------------------------------------------------------
+# Guardian initialisation (done once at startup)
+# ---------------------------------------------------------------------------
+BACKEND = os.getenv("LLM_BACKEND", "ollama").lower()
+TEMPERATURE = float(os.getenv("SECSCAN_T", "0"))
 
-# -------- initialise once -------------
-bee = Guardian()        # loads embeddings + local LLM
+bee = Guardian(backend=BACKEND, temperature=TEMPERATURE)
 
-DEFAULT_PROMPT_PATH_PS1 = Path("src/lm/prompts/powershell/prompt_11.md")
-DEFAULT_PROMPT_PATH_GROOVY = Path("src/lm/prompts/groovy/prompt_9.md")
+# ---------------------------------------------------------------------------
+# FastAPI setup
+# ---------------------------------------------------------------------------
+app = FastAPI(title="Script Guardian - Script Security Auditor")
 
-if not DEFAULT_PROMPT_PATH_PS1.exists() and not DEFAULT_PROMPT_PATH_GROOVY.exists():
-    raise FileNotFoundError(f"Prompt file not found: {DEFAULT_PROMPT_PATH_PS1}, {DEFAULT_PROMPT_PATH_GROOVY}")
+# serve static HTML/JS assets (optional UI)
+static_dir = Path(__file__).parent / "static"
+if static_dir.exists():
+    app.mount("/static", StaticFiles(directory=static_dir, html=True), name="static")
 
-bee.prompt = DEFAULT_PROMPT_PATH.read_text(encoding="utf-8")
-
-app = FastAPI(title="ScanBee – Script Security Auditor")
-
-app.mount("/static", StaticFiles(directory="static", html=True), name="static")
-
-# Add CORS middleware to allow requests from anywhere (or restrict to specific origins)
+# CORS for local dev / web UI
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # ← OK for local dev
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# ---------- pydantic models ----------
+# ---------------------------------------------------------------------------
+# Pydantic models
+# ---------------------------------------------------------------------------
 class ScriptIn(BaseModel):
     script: str
+
 
 class VerdictOut(BaseModel):
     result: Any
 
-# ---------- helper --------------------
-async def analyse_text(text: str) -> Dict:
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+async def analyse_text(text: str, script_type: str) -> Dict[str, Any]:
     loop = asyncio.get_event_loop()
-    return await loop.run_in_executor(None, bee.analyse, text)
+    return await loop.run_in_executor(None, bee.analyse_code, text, script_type)
 
-# ---------- routes --------------------
 
+# ---------------------------------------------------------------------------
+# Routes
+# ---------------------------------------------------------------------------
 @app.get("/", include_in_schema=False)
 async def serve_index():
     return FileResponse("static/index.html")
 
 @app.post("/analyze", response_model=VerdictOut)
-async def analyze_script(request: Request, file: UploadFile = File(None)):
-    content_type = request.headers.get("content-type", "")
-
-    if "application/json" in content_type:
+async def analyze_script(request: Request, file: UploadFile | None = File(None)):
+    script_text = None
+    script_type = None
+    
+    try:
+        # Attempt to parse JSON body first
         body = await request.json()
-        if "script" not in body:
-            raise HTTPException(400, "Missing 'script' in JSON")
-        script_text = body["script"]
+        script_text = body.get("script", "").strip()
+        script_type = body.get("scriptType", "powershell")
+        if script_text:
+            print("[analyze_script] Using script from JSON body")
+    except Exception:
+        # JSON body not present or unreadable
+        pass
 
-    elif "multipart/form-data" in content_type:
-        if not file:
-            raise HTTPException(400, "No file uploaded")
-        script_text = (await file.read()).decode("utf-8", errors="ignore")
+    # If no script in JSON, try file upload
+    if not script_text and file:
+        script_text = (await file.read()).decode("utf-8", errors="ignore").strip()
+        print("[analyze_script] Using script from uploaded file")
 
-    else:
-        raise HTTPException(400, "Unsupported content type")
+    if not script_text:
+        raise HTTPException(400, "No script provided via JSON body or uploaded file")
 
-    instrumented_code = bee.with_line_markers(script_text)
-    verdict = await analyse_text(instrumented_code)
+    print(f"[analyze_script] Script length: {len(script_text)} characters")
+    verdict = await analyse_text(script_text, script_type)
+    print(f"[analyze_script] Analysis complete. Verdict: {verdict.get('script', 'unknown')}")
     return {"result": verdict}
 
 @app.get("/ping")
 async def ping():
     return {"msg": "pong"}
-
-@app.get("/")
-async def root():
-    return {"message": "ScanBee API ready"}

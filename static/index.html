@@ -56,6 +56,52 @@
       .comment:hover {
         background-color: rgba(147, 197, 253, 0.15); /* blue-200 with opacity */
       }
+      body {
+        color: rgb(51 65 85);
+        font-size: 1rem;
+        font-weight: 400;
+        line-height: 1.5;
+        margin: 0;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+        min-height: 10rem;
+      }
+      * {
+          box-sizing: border-box;
+      }
+
+      .container {
+        display: flex;
+        position: relative;
+        border: 1px solid #ccc;
+        border-radius: 6px;
+        font-family: monospace;
+        background: #fff;
+      }
+
+      .container__lines {
+        padding: 0.5rem;
+        width: 40px;
+        background: #f3f3f3;
+        color: #666;
+        text-align: right;
+        user-select: none;
+        font-size: 14px;
+        border-right: 1px solid #ccc;
+      }
+
+      .container__textarea {
+        flex: 1;
+        padding: 0.5rem;
+        border: none;
+        resize: vertical;
+        font-size: 14px;
+        line-height: 1.4;
+        font-family: monospace;
+        background: transparent;
+        outline: none;
+      }
+
     </style>
   </head>
   <body class="bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-100 transition-colors duration-300">
@@ -72,14 +118,34 @@
       <div class="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-lg space-y-6 transition-all">
         <!-- Text Input -->
         <div id="textInputGroup">
-          <label for="scriptText" class="block mb-2 font-medium">Paste your PowerShell or Groovy script</label>
-          <textarea id="scriptText" rows="8" placeholder="# Paste script here..." class="w-full border border-gray-300 dark:border-gray-700 rounded-lg px-4 py-2 text-sm font-mono resize-y bg-white dark:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500" oninput="updateAnalyzeButtonState(); toggleOrSeparator();"></textarea>
+          <label for="scriptText" class="block mb-2 font-medium">
+            Paste your PowerShell or Groovy script
+          </label>
+          <div id="container" class="container">
+            <div id="line-numbers" class="container__lines">1</div>
+            <textarea
+              id="scriptText"
+              rows="8"
+              placeholder="# Paste script here..."
+              class="container__textarea w-full border border-gray-300 dark:border-gray-700 rounded-lg px-4 py-2 text-sm font-mono resize-y bg-white dark:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              oninput="updateLineNumbers(); updateAnalyzeButtonState(); toggleOrSeparator();"
+            ></textarea>
+          </div>
         </div>
 
         <!-- OR Separator -->
         <div id="orSeparator" class="relative text-center text-gray-500">
           <div class="absolute top-1/2 left-0 right-0 border-t border-gray-300 dark:border-gray-700"></div>
           <span class="bg-white dark:bg-gray-800 px-3 relative z-10">OR</span>
+        </div>
+
+        <!-- Script type -->
+        <div>
+          <label for="scriptType" class="text-gray-800 dark:text-white px-4 py-2 rounded-md font-medium">Select script type <span class="dark:text-red">*</span> :</label>
+          <select id="scriptType" class="bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-white px-4 py-2 rounded-md font-medium cursor-pointer hover:bg-gray-300 dark:hover:bg-gray-600 transition" required>
+            <option value="powershell">PowerShell</option>
+            <option value="groovy">Groovy</option>
+          </select>
         </div>
 
         <!-- File Upload -->
@@ -90,7 +156,6 @@
           </label>
           <div id="fileName" class="mt-2 text-sm font-medium"></div>
         </div>
-
         <!-- Buttons -->
         <div class="flex flex-wrap gap-4">
           <button id="analyzeButton" disabled onclick="sendRequest()" class="bg-blue-600 text-white px-5 py-2 rounded-lg text-sm font-semibold hover:bg-blue-700 disabled:bg-gray-400 transition">🧪 Analyze</button>
@@ -119,6 +184,36 @@
     </div>
 
     <script>
+
+      // document.addEventListener('DOMContentLoaded', () => {
+      //     const textarea = document.getElementById('scriptText');
+      //     const lineNumbersEle = document.getElementById('line-numbers');
+
+      //     const displayLineNumbers = () => {
+      //         const lines = textarea.value.split('\n');
+      //         lineNumbersEle.innerHTML = Array.from({
+      //             length: lines.length,
+      //         }, (_, i) => `<div>${i + 1}</div>`).join('');
+      //     };
+
+      //     displayLineNumbers();
+      // });
+
+      function updateLineNumbers() {
+        const textarea = document.getElementById("scriptText");
+        const lineNumbers = document.getElementById("line-numbers");
+
+        const lines = textarea.value.split("\n").length;
+        lineNumbers.innerHTML = Array.from({ length: lines }, (_, i) => i + 1).join("<br>");
+      }
+
+      document.getElementById("scriptText").addEventListener("scroll", function () {
+        document.getElementById("line-numbers").scrollTop = this.scrollTop;
+      });
+
+      // Ensure it updates on page load too
+      document.addEventListener("DOMContentLoaded", updateLineNumbers);
+
       function toggleTheme() {
         const html = document.documentElement;
         const isDark = html.classList.toggle('dark');
@@ -230,6 +325,7 @@
       const fileInput = document.getElementById("scriptFile");
       const status = document.getElementById("status");
       const result = document.getElementById("result");
+      const scriptType = document.getElementById("scriptType");
       const analyzeBtn = document.getElementById("analyzeButton");
       analyzeBtn.disabled = true;
 
@@ -242,6 +338,11 @@
 
       if (!hasFile && !hasText) {
         status.textContent = "⚠️ Please paste a script or upload a file.";
+        return;
+      }
+
+      if(scriptType.value == "" || scriptType.value == null){
+        status.textContent = "⚠️ Please select the script type.";
         return;
       }
 
@@ -262,7 +363,7 @@
         form.append("file", fileInput.files[0]);
         body = form;
       } else {
-        body = JSON.stringify({ script: textArea.value });
+        body = JSON.stringify({ script: textArea.value, scriptType: scriptType.value });
         headers["Content-Type"] = "application/json";
       }
 

@@ -61,6 +61,28 @@ Error | warning criteria
     -  Recommend removing, isolating, or guarding all output operations
     -  Suggest reporting the use of any leak-prone line as a policy violation (e.g. "Send alert to security system or customer portal")
 
+━━━━━━━━━━ CODE SUGGESTION POLICY ━━━━━━━━━━
+
+    For each `"code_suggestion"` field:
+
+    - Provide a real alternative that keeps the script functional **without exposing sensitive data**
+    - If the original line logs a sensitive value, replace it with a neutral/log-safe version
+    - Examples:
+
+    •  `Write-Host "Password: $env:PASS"`  
+         `Write-Host "Authentication started"`  
+
+    •  `echo $apiKey`  
+         `Write-Host "API request sent"`  
+
+    •  `Invoke-Expression $sshCommand` where `$sshCommand` contains a sensitive env var  
+         Suggest building a secure command that avoids echoing the value
+
+    - Do NOT simply say "remove the line" unless it’s truly unnecessary
+    - The suggestion should match the syntax of the source language (PowerShell or Groovy)
+    - Use real command-line constructs where appropriate (e.g. `"Write-Host 'Done'"`)
+    - If replacing with a safer variant, keep the intent intact (e.g. "connection tested", "auth successful")
+    - The suggestion should be valid code, not a placeholder
 
 ━━━━━━━━━━ SCORING ━━━━━━━━━━
 

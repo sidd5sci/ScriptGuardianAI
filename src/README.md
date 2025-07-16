@@ -73,7 +73,7 @@ pip install --upgrade transformers accelerate
 pip install tiktoken
 pip install protobuf
 pip install sentencepiece
-
+pip install python-multipart
 
 pip3 install requests beautifulsoup4
 

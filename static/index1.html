@@ -1,22 +1,43 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>ScanBee – Script Auditor</title>
+
+  <!-- Google Material CSS & Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Roboto&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+
   <style>
+    :root {
+      --bg: #f7f7fa;
+      --fg: #333;
+      --panel-bg: #fff;
+      --output-bg: #f9f9f9;
+      --btn-primary: #007bff;
+      --btn-secondary: #6c757d;
+    }
+    [data-theme="dark"] {
+      --bg: #1e1e1e;
+      --fg: #ddd;
+      --panel-bg: #2b2b2b;
+      --output-bg: #1a1a1a;
+      --btn-primary: #2196f3;
+      --btn-secondary: #555;
+    }
     body {
-      font-family: Arial, sans-serif;
-      background: #f7f7fa;
+      font-family: 'Roboto', sans-serif;
+      background: var(--bg);
+      color: var(--fg);
       margin: 0;
       padding: 2rem;
-      color: #333;
+      transition: background 0.3s, color 0.3s;
     }
     .panel {
       max-width: 900px;
       margin: auto;
-      background: #fff;
+      background: var(--panel-bg);
       padding: 1.5rem;
       border-radius: 8px;
       box-shadow: 0 2px 6px rgba(0, 0, 0, .05);
@@ -35,13 +56,21 @@
       padding: .5rem 1rem;
       border: none;
       border-radius: 4px;
-      background: #007bff;
+      background: var(--btn-primary);
       color: #fff;
       font-size: .9rem;
       cursor: pointer;
     }
     .btn-secondary {
-      background: #6c757d;
+      background: var(--btn-secondary);
+    }
+    .theme-toggle {
+      float: right;
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-size: 1.3rem;
+      margin-top: -1.5rem;
     }
     .line {
       display: flex;
@@ -71,7 +100,7 @@
     }
     .output {
       margin-top: 1.5rem;
-      background: #f9f9f9;
+      background: var(--output-bg);
       border: 1px solid #ccc;
       border-radius: 4px;
       padding: 0.5rem;
@@ -79,7 +108,22 @@
       white-space: pre-wrap;
     }
   </style>
+
   <script>
+    // Persisted theme
+    document.addEventListener("DOMContentLoaded", () => {
+      const theme = localStorage.getItem("theme") || "light";
+      document.documentElement.setAttribute("data-theme", theme);
+    });
+
+    function toggleTheme() {
+      const root = document.documentElement;
+      const current = root.getAttribute("data-theme") || "light";
+      const next = current === "light" ? "dark" : "light";
+      root.setAttribute("data-theme", next);
+      localStorage.setItem("theme", next);
+    }
+
     async function sendRequest() {
       const outputDiv = document.getElementById("result");
       const raw = document.getElementById("scriptText").value;
@@ -100,7 +144,7 @@
       }
 
       const data = await response.json();
-      displayFormattedOutput(raw, data.findings || []);
+      displayFormattedOutput(raw, data.result?.findings || []);
     }
 
     function clearText() {
@@ -138,9 +182,12 @@
     }
   </script>
 </head>
+
 <body>
   <div class="panel">
+    <button class="theme-toggle material-icons" onclick="toggleTheme()" title="Toggle theme">light_mode</button>
     <h1>🔍 ScanBee – Script Security Auditor</h1>
+
     <label for="scriptText">Paste your script:</label>
     <textarea id="scriptText" placeholder="# PowerShell or Groovy script..."></textarea>
 

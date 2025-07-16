@@ -131,6 +131,18 @@ class Guardian:
             "score": score,
             "findings": clean_findings
         }
+    # ------------------------- analyse file ----------------------
+    def analyse_code(self, code: str, scriptType: str) -> Dict[str, Any]:
+        
+        if scriptType.lower() == "powershell":
+            self.prompt = self.prompt_ps1.read_text(encoding="utf-8", errors="ignore")
+        elif scriptType.lower() == "groovy":
+            self.prompt = self.prompt_groovy.read_text(encoding="utf-8", errors="ignore")
+        else:
+            raise ValueError("Unsupported file type")
+        print(scriptType)
+        instrumented_code = self.with_line_markers(code)
+        return self.analyse(instrumented_code)
 
     # ------------------------- analyse file ----------------------
     def analyse_file(self, path: Path) -> Dict[str, Any]:
