@@ -70,79 +70,109 @@
           box-sizing: border-box;
       }
 
-      .container {
-        display: flex;
-        position: relative;
-        border: 1px solid #ccc;
-        border-radius: 6px;
-        font-family: monospace;
-        background: #fff;
-      }
+    .editor-wrapper {
+      position: relative;
+      display: flex;
+      font-family: monospace;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      background: white;
+    }
 
-      .container__lines {
-        padding: 0.5rem;
-        width: 40px;
-        background: #f3f3f3;
-        color: #666;
-        text-align: right;
-        user-select: none;
-        font-size: 14px;
-        border-right: 1px solid #ccc;
-      }
+    textarea#scriptText {
+      position: absolute;
+      top: 0; 
+      left: 32px;
+      width: 96%;
+      height: 100%;
+      resize: vertical;
+      border: none;
+      background: transparent;
+      color: transparent;            
+      caret-color: black;
+      z-index: 2;
+      font-size: 14px;
+      padding: 0.5rem;
+      font-family: inherit;
+      line-height: 1.81;
+      letter-spacing: 1px;
+      outline: none;
+      border-radius: 0px;
+    }
 
-      .container__textarea {
-        flex: 1;
-        padding: 0.5rem;
-        border: none;
-        resize: vertical;
-        font-size: 14px;
-        line-height: 1.4;
-        font-family: monospace;
-        background: transparent;
-        outline: none;
-      }
+    pre.highlight-container {
+      padding: 0.5rem;
+      white-space: pre-wrap;
+      margin: 0;
+      overflow: auto;
+      background: #f9f9f9;
+      z-index: 1;
+      width: 100%;
+      color: transparent;
+      pointer-events: none;
+    }
 
-      .editor-container {
-        position: relative;
-        font-family: monospace;
-        line-height: 1.4;
-      }
+    pre.highlight-container div {
+      display: flex;
+      white-space: pre-wrap;
+    }
 
-      .highlighted-code {
-        position: absolute;
-        top: 0; left: 40px;
-        width: 100%;
-        color: black;
-        min-height: 180px;
-        padding: 0px 10px;
-        /* white-space: pre-wrap; */
-        background: #f9f9f9;
-        /* border: 1px solid #ccc; */
-        /* border-radius: 4px; */
-        z-index: 0;
-        pointer-events: none;
-      }
+    .lineno {
+      width: 2rem;
+      text-align: right;
+      padding-right: 0.5rem;
+      color: #474747;
+      user-select: none;
+      pointer-events: auto;
+    }
+    .line {
+      flex: 1;
+      overflow-wrap: break-word;
+      color: #818181;
+    }
 
-      .editor-textarea {
-        position: relative;
-        z-index: 1;
-        width: 100%;
-        min-height: 180px;
-        padding: 0.5rem;
-        background: transparent;
-        color: black;
-        border: 1px solid #ccc;
-        border-radius: 4px;
-        font-family: monospace;
-        line-height: 1.4;
-        resize: vertical;
-      }
-      .line-highlight-error {
-        background: #ffe2e2;
-      }
-      .line-highlight-warning {
-        background: #fff6cc;
-      }
+    .line.error {
+      background-color: #ffe2e2;
+    }
+
+    .line.warning {
+      background-color: #fff8cc;
+    }
+
+
+    .tooltip-box {
+      text-align: left !important;
+      position: relative;
+      left: 1.5rem;
+      z-index: 10;
+      background: white;
+      border: 1px solid #ccc;
+      padding: 0.5rem;
+      border-radius: 4px;
+      font-size: 13px;
+      width: 500px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    }
+
+    .tooltip-box pre {
+      background: #f9f9f9;
+      padding: 0.3rem;
+      border: 1px solid #eee;
+      font-size: 12px;
+      white-space: pre-wrap;
+      border-radius: 3px;
+    }
+
+    .btn-apply {
+      margin-top: 8px;
+      padding: 4px 10px;
+      background: #007bff;
+      color: white;
+      border: none;
+      font-size: 12px;
+      border-radius: 4px;
+      cursor: pointer;
+    }
 
 
     </style>
@@ -164,15 +194,16 @@
           <label for="scriptText" class="block mb-2 font-medium">
             Paste your PowerShell or Groovy script
           </label>
-          <div id="container" class="container">
-            <div id="line-numbers" class="container__lines">1</div>
-            <pre id="highlightedCode" class="highlighted-code text-sm"></pre>
+          <div class="editor-wrapper">
+            <pre id="highlightContainer" class="highlight-container"></pre>
             <textarea
               id="scriptText"
+              spellcheck="false"
               rows="8"
               placeholder="# Paste script here..."
               class="container__textarea w-full border border-gray-300 dark:border-gray-700 rounded-lg px-4 py-2 text-sm font-mono resize-y bg-white dark:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              oninput="syncHighlight(); updateLineNumbers(); updateAnalyzeButtonState(); toggleOrSeparator();"
+              oninput="syncEditor(); updateAnalyzeButtonState(); toggleOrSeparator();"
+              
             ></textarea>
           </div>
         </div>
@@ -228,35 +259,96 @@
     </div>
 
     <script>
+      window.addEventListener('DOMContentLoaded', () => {
+        const saved = localStorage.getItem('theme');
+        if (saved === 'dark') document.documentElement.classList.add('dark');
+        // updateLineNumbers();
+        syncEditor();
+      });
 
-      function syncHighlight() {
-        const input = document.getElementById("scriptText");
-        const highlight = document.getElementById("highlightedCode");
-
-        const text = input.value || "";
-        const lines = text.split("\n").map(line => `<div>${line || "&nbsp;"}</div>`).join("");
-        highlight.innerHTML = lines;
+      function syncEditor() {
+        const textarea = document.getElementById("scriptText");
+        const highlight = document.getElementById("highlightContainer");
+        const lines = textarea.value.split("\n");
+        highlight.innerHTML = lines.map((line, i) => {
+          const safe = line.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+          return `<div><span class="lineno">${i + 1}</span><span class="line">${safe || "&nbsp;"}</span></div>`;
+        }).join("");
+        
+        highlight.scrollTop = textarea.scrollTop;
+        highlight.scrollLeft = textarea.scrollLeft;
       }
+     
+      document.getElementById("scriptText").addEventListener("scroll", e => {
+        // document.getElementById("highlightContainer").scrollTop = e.target.scrollTop;
+        const pre = document.getElementById("highlightContainer");
+        pre.scrollTop = e.target.scrollTop;
+        pre.scrollLeft = e.target.scrollLeft;
+      });
 
-      // Highlight based on findings
       function highlightFindings(findings) {
-        const input = document.getElementById("scriptText");
-        const highlight = document.getElementById("highlightedCode");
+        const container = document.getElementById("highlightContainer");
+        const lines = container.querySelectorAll(".line");
+        const linesNo = container.querySelectorAll(".lineno");
 
-        const lines = input.value.split("\n");
-        const highlights = [];
+        findings.forEach(f => {
+          const idx = f.line - 1;
+          const row = lines[idx];
+          const lineno = linesNo[idx];
+          if (!row) return;
 
-        for (let i = 0; i < lines.length; i++) {
-          const match = findings.find(f => f.line === i + 1);
-          let cssClass = "";
-          if (match?.severity === "Error") cssClass = "line-highlight-error";
-          if (match?.severity === "Warning") cssClass = "line-highlight-warning";
-          const escaped = lines[i] ? lines[i].replace(/</g, "&lt;").replace(/>/g, "&gt;") : "&nbsp;";
-          highlights.push(`<div class="${cssClass}">${escaped}</div>`);
-        }
+          const type = f.severity.toLowerCase();
+          row.classList.add(type);
+          row.title = `[${f.severity}] ${f.reason}\nFix: ${f.recommendation}`;
+          row.textContent += "  " +  `[${f.severity}] ${f.reason}`;
 
-        highlight.innerHTML = highlights.join("");
+          // Bulb icon
+          const bulb = document.createElement("span");
+          bulb.className = "tooltip-icon";
+          bulb.style.position = "absolute";
+          bulb.style.left = "5px";
+          bulb.style.cursor = "pointer";
+          bulb.textContent = "💡";
+          bulb.onclick = function(e) {
+            e.stopPropagation();
+            console.log("clicked");
+            document.querySelectorAll(".tooltip-box").forEach(t => t.style.display = "none");
+            tooltip.style.display = "block";
+          };
+          
+          lineno.appendChild(bulb);
+
+          // Tooltip container
+          const tooltip = document.createElement("div");
+          tooltip.className = "tooltip-box";
+          tooltip.innerHTML = `
+            <h3 class="${type}">${f.severity}</h3>
+            <p>${f.reason}</p>
+            <div style="margin-top:4px;"><b>Reccomandation:</b> ${f.recommendation}</div>
+            <div style="margin-top:4px;">💡 <b>Fix:</b></div>
+            <pre class="suggestion-block">${f.code_suggestion}</pre>
+            <button class="btn-apply" onclick="applySuggestion(${f.line}, \`${f.code_suggestion.replace(/`/g, '\`')}\`)" >Apply</button>
+          `;
+          tooltip.style.display = "none";
+          tooltip.classList.add("tooltip-box");
+
+          lineno.appendChild(tooltip);
+        });
       }
+
+      // Close tooltips on outside click
+      document.addEventListener("click", () => {
+        document.querySelectorAll(".tooltip-box").forEach(t => t.style.display = "none");
+      });
+
+      function applySuggestion(lineNumber, suggestion) {
+        const textarea = document.getElementById("scriptText");
+        const lines = textarea.value.split("\n");
+        lines[lineNumber - 1] = suggestion;
+        textarea.value = lines.join("\n");
+        syncHighlight();  // re-render the editor lines
+      }
+
 
       function updateLineNumbers() {
         const textarea = document.getElementById("scriptText");
@@ -266,9 +358,9 @@
         lineNumbers.innerHTML = Array.from({ length: lines }, (_, i) => i + 1).join("<br>");
       }
 
-      document.getElementById("scriptText").addEventListener("scroll", function () {
-        document.getElementById("line-numbers").scrollTop = this.scrollTop;
-      });
+      // document.getElementById("scriptText").addEventListener("scroll", function () {
+      //   document.getElementById("line-numbers").scrollTop = this.scrollTop;
+      // });
 
       function toggleTheme() {
         const html = document.documentElement;
@@ -276,12 +368,6 @@
         document.getElementById("themeIcon").textContent = isDark ? "🌞" : "🌜";
         localStorage.setItem('theme', isDark ? 'dark' : 'light');
       }
-
-      window.addEventListener('DOMContentLoaded', () => {
-        const saved = localStorage.getItem('theme');
-        if (saved === 'dark') document.documentElement.classList.add('dark');
-        updateLineNumbers();
-      });
 
       function copyResults() {
         const temp = document.createElement('textarea');
@@ -341,40 +427,6 @@
         const summary = document.getElementById("resultSummary");
         if (summary) summary.remove();
       }
-
-      document.getElementById("scriptFile").addEventListener("change", function () {
-        const fileInput = document.getElementById("scriptFile");
-        const fileNameDisplay = document.getElementById("fileName");
-        const fileLabelText = document.getElementById("fileLabelText");
-        const scriptText = document.getElementById("scriptText");
-        const textGroup = document.getElementById("textInputGroup");
-        const result = document.getElementById("result");
-        const status = document.getElementById("status");
-        const summary = document.getElementById("resultSummary");
-        const orSep = document.getElementById("orSeparator");
-
-        // Reset display
-        result.style.display = "none";
-        result.innerHTML = "";
-        status.textContent = "";
-        updateProgress(0);
-        if (summary) summary.remove();
-
-        if (fileInput.files.length > 0) {
-          fileNameDisplay.textContent = `📄 ${fileInput.files[0].name}`;
-          fileLabelText.textContent = "Change file";
-          scriptText.value = ""; 
-          textGroup.style.display = "none";
-          if (orSep) orSep.style.display = "none";
-        } else {
-          fileNameDisplay.textContent = "";
-          fileLabelText.textContent = "Choose a file to upload";
-          textGroup.style.display = "block";
-          if (orSep) orSep.style.display = "block";
-        }
-
-        updateAnalyzeButtonState();
-      });
 
       async function sendRequest() {
         const textArea = document.getElementById("scriptText");
@@ -453,6 +505,7 @@
           const score = json.result.score;
           const statusText = json.result.script === "safe" ? "Safe" : "Vulnerable";
           
+          syncEditor();
           highlightFindings(json.result.findings || []);
           
           status.textContent = "✅ Analysis complete.";
@@ -471,89 +524,7 @@
         }
       }
 
-      function formatHighlightedScript(script, findings) {
-        const lines = script.split(/\r?\n/);
-        const markMap = new Map();
-
-        for (const f of findings) {
-          if (!markMap.has(f.line)) markMap.set(f.line, []);
-          markMap.get(f.line).push(f);
-        }
-
-        let html = `<div class="highlighted-code">`;
-        let plainText = '';
-
-        for (let i = 0; i < lines.length; i++) {
-          const lineNum = i + 1;
-          const rawLine = lines[i] || "";
-          function escapeHTML(str) {
-            return str
-              .replace(/&/g, "&amp;")
-              .replace(/</g, "&lt;")
-              .replace(/>/g, "&gt;")
-              .replace(/"/g, "&quot;")
-              .replace(/'/g, "&#39;")
-              .replace(/`/g, "&#96;");
-          }
-
-          const escapedLine = escapeHTML(rawLine);
-
-          const findingsForLine = markMap.get(lineNum) || [];
-
-          const severity = findingsForLine.some(f => f.severity === "Error")
-            ? "Error"
-            : findingsForLine.some(f => f.severity === "Warning")
-            ? "Warning"
-            : null;
-
-          const bg = severity === "Error"
-            ? "var(--highlight-error, #fee2e2)"
-            : severity === "Warning"
-            ? "var(--highlight-warn, #8B4513)"
-            : "transparent";
-
-          const borderColor = severity === "Error"
-            ? "#f87171"
-            : severity === "Warning"
-            ? "#ecc94b"
-            : "transparent";
-
-          html += `
-            <div class="highlight-line ${
-              severity === "Error"
-                ? 'bg-red-100 border-l-4 border-red-500 dark:bg-red-900 dark:border-red-400'
-                : severity === "Warning"
-                ? 'bg-yellow-100 border-l-4 border-yellow-500 dark:bg-yellow-900 dark:border-yellow-400'
-                : ''
-            }">
-              <div class="line-number">${lineNum}</div>
-              <div class="code-text">${escapedLine || '&nbsp;'}</div>
-            </div>
-          `;
-
-          plainText += `${rawLine}\n`;
-
-          for (const f of findingsForLine) {
-            html += `
-              <div class="comment-wrapper pl-14 -mt-1 mb-1">
-                <div class="comment ${
-                  f.severity.toLowerCase()
-                } pl-14 text-xs italic leading-tight">
-                  💡 <strong>[${f.severity}]</strong> ${f.reason}
-                </div>
-              </div>
-            `;
-            plainText += `💡 [${f.severity}] ${f.reason}\n`;
-          }
-
-        }
-
-        html += `</div>`;
-        document.getElementById("resultText").textContent = plainText;
-        return html;
-      }
-
-  </script>
+</script>
   <!-- Spinner Overlay -->
   <div id="spinner" class="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50 hidden">
     <div class="animate-spin rounded-full h-12 w-12 border-4 border-blue-500 border-t-transparent"></div>
