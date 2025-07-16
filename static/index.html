@@ -139,40 +139,76 @@
       background-color: #fff8cc;
     }
 
+    .line.error.text {
+      color: #e93434;
+    }
+
+    .line.warning.text {
+      color: #e8cb0d;
+    }
 
     .tooltip-box {
-      text-align: left !important;
-      position: relative;
+      text-align: left;
+      position: absolute;
+      top: 1.8rem;
       left: 1.5rem;
-      z-index: 10;
-      background: white;
+      z-index: 9999;
+      background: #fff;
       border: 1px solid #ccc;
-      padding: 0.5rem;
-      border-radius: 4px;
+      border-radius: 6px;
       font-size: 13px;
-      width: 500px;
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+      width: 350px;
+      padding: 0.75rem;
+      box-shadow: 0 6px 12px rgba(0, 0, 0, 0.12);
+      transition: opacity 0.2s ease;
     }
 
-    .tooltip-box pre {
-      background: #f9f9f9;
-      padding: 0.3rem;
-      border: 1px solid #eee;
+    .tooltip-box::before {
+      content: '';
+      position: absolute;
+      top: -8px;
+      left: 12px;
+      width: 0;
+      height: 0;
+      border-left: 8px solid transparent;
+      border-right: 8px solid transparent;
+      border-bottom: 8px solid #ccc;
+    }
+
+    .tooltip-box::after {
+      content: '';
+      position: absolute;
+      top: -7px;
+      left: 13px;
+      width: 0;
+      height: 0;
+      border-left: 7px solid transparent;
+      border-right: 7px solid transparent;
+      border-bottom: 7px solid #fff;
+    }
+
+    .tooltip-box .suggestion-block {
+      font-family: monospace;
+      background: #f6f6f6;
+      border: 1px solid #e0e0e0;
+      padding: 6px;
+      border-radius: 4px;
       font-size: 12px;
       white-space: pre-wrap;
-      border-radius: 3px;
+      margin-top: 6px;
     }
 
-    .btn-apply {
-      margin-top: 8px;
-      padding: 4px 10px;
+    .tooltip-box .btn-apply {
+      padding: 5px 10px;
       background: #007bff;
-      color: white;
-      border: none;
+      color: #fff;
       font-size: 12px;
+      border: none;
       border-radius: 4px;
       cursor: pointer;
     }
+
+
 
 
     </style>
@@ -262,7 +298,6 @@
       window.addEventListener('DOMContentLoaded', () => {
         const saved = localStorage.getItem('theme');
         if (saved === 'dark') document.documentElement.classList.add('dark');
-        // updateLineNumbers();
         syncEditor();
       });
 
@@ -300,7 +335,28 @@
           const type = f.severity.toLowerCase();
           row.classList.add(type);
           row.title = `[${f.severity}] ${f.reason}\nFix: ${f.recommendation}`;
-          row.textContent += "  " +  `[${f.severity}] ${f.reason}`;
+          const flag = document.createElement('span');
+          flag.classList.add('line');
+          flag.classList.add(type);
+          flag.classList.add('text');
+          flag.innerHTML = `[${f.severity}] ${f.reason}`;
+          row.appendChild(flag);
+          // row.textContent += `  <span class="line ${type} text" >` +  `[${f.severity}] ${f.reason}</span>`;
+
+
+          // Tooltip container
+          const tooltip = document.createElement("div");
+          tooltip.className = "tooltip-box";
+          tooltip.innerHTML = `
+            <h2 class="line ${type}">${f.severity}</h2>
+            <p>${f.reason}</p>
+            <div style=""><b>Reccomandation:</b> ${f.recommendation}</div>
+            <div style="">💡 <b>Fix:</b></div>
+            <pre class="suggestion-block">${f.code_suggestion}</pre>
+            <button class="btn-apply" onclick="applySuggestion(${f.line}, \`${f.code_suggestion.replace(/`/g, '\`')}\`)" >Apply</button>
+          `;
+          tooltip.style.display = "none";
+          tooltip.classList.add("tooltip-box");
 
           // Bulb icon
           const bulb = document.createElement("span");
@@ -309,36 +365,31 @@
           bulb.style.left = "5px";
           bulb.style.cursor = "pointer";
           bulb.textContent = "💡";
-          bulb.onclick = function(e) {
+          bulb.addEventListener("click", function (e) {
             e.stopPropagation();
-            console.log("clicked");
+            // Hide all other tooltips
             document.querySelectorAll(".tooltip-box").forEach(t => t.style.display = "none");
-            tooltip.style.display = "block";
-          };
+            document.getElementById('scriptText').style.zIndex=0;
+            // Align this tooltip to this bulb
+            const rect = bulb.getBoundingClientRect();
+            const offsetLeft = rect.left + window.scrollX;
+            const offsetTop = rect.top + window.scrollY;
+
+            tooltip.style.left =  "5px";
+            tooltip.style.top = (offsetTop - 110) + "px";
+            tooltip.style.display = "inline-grid";
+          });
           
           lineno.appendChild(bulb);
-
-          // Tooltip container
-          const tooltip = document.createElement("div");
-          tooltip.className = "tooltip-box";
-          tooltip.innerHTML = `
-            <h3 class="${type}">${f.severity}</h3>
-            <p>${f.reason}</p>
-            <div style="margin-top:4px;"><b>Reccomandation:</b> ${f.recommendation}</div>
-            <div style="margin-top:4px;">💡 <b>Fix:</b></div>
-            <pre class="suggestion-block">${f.code_suggestion}</pre>
-            <button class="btn-apply" onclick="applySuggestion(${f.line}, \`${f.code_suggestion.replace(/`/g, '\`')}\`)" >Apply</button>
-          `;
-          tooltip.style.display = "none";
-          tooltip.classList.add("tooltip-box");
-
           lineno.appendChild(tooltip);
+          lineno.style.color = "#e93434;";
         });
       }
 
       // Close tooltips on outside click
       document.addEventListener("click", () => {
         document.querySelectorAll(".tooltip-box").forEach(t => t.style.display = "none");
+        document.getElementById('scriptText').style.zIndex=2;
       });
 
       function applySuggestion(lineNumber, suggestion) {
@@ -346,7 +397,7 @@
         const lines = textarea.value.split("\n");
         lines[lineNumber - 1] = suggestion;
         textarea.value = lines.join("\n");
-        syncHighlight();  // re-render the editor lines
+        syncEditor();  // re-render the editor lines
       }
 
 
