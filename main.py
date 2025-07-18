@@ -96,7 +96,7 @@ async def analyze_script(request: Request, file: UploadFile | None = File(None))
     try:
         # Attempt to parse JSON body first
         body = await request.json()
-        script_text = body.get("script", "").strip()
+        script_text = body.get("script", "")
         script_type = body.get("scriptType", "powershell")
         if script_text:
             print("[analyze_script] Using script from JSON body")
@@ -106,7 +106,7 @@ async def analyze_script(request: Request, file: UploadFile | None = File(None))
 
     # If no script in JSON, try file upload
     if not script_text and file:
-        script_text = (await file.read()).decode("utf-8", errors="ignore").strip()
+        script_text = (await file.read()).decode("utf-8", errors="ignore")
         print("[analyze_script] Using script from uploaded file")
 
     if not script_text:

@@ -61,23 +61,25 @@ Error | warning criteria
     -  Recommend removing, isolating, or guarding all output operations
     -  Suggest reporting the use of any leak-prone line as a policy violation (e.g. "Send alert to security system or customer portal")
 
-━━━━━━━━━━ CODE SUGGESTION POLICY ━━━━━━━━━━
+━━━━━━━━━━ CODE SUGGESTION POLICY (REQUIRED) ━━━━━━━━━━
 
-    For each `"code_suggestion"` field:
+    You MUST give a valid and realistic alternative line of code:
 
-    - Provide a real alternative that keeps the script functional **without exposing sensitive data**
-    - If the original line logs a sensitive value, replace it with a neutral/log-safe version
-    - Examples:
+    - The `"code_suggestion"` must be safe **and functional**
+    - It must preserve the intent of the original script — without leaking sensitive values
 
-    •  `Write-Host "Password: $env:PASS"`  
-         `Write-Host "Authentication started"`  
+    More examples:
 
-    •  `echo $apiKey`  
-         `Write-Host "API request sent"`  
+    | Original | Suggestion |
+    |----------|------------|
+    | `Write-Host $sshCommand` | `Write-Host "Command sent"` |
+    | `echo Token: $env:KEY` | `Write-Host "Token saved"` |
+    | `iex $unsafeCmd` | `Write-Host "Executing secure command"` |
 
-    •  `Invoke-Expression $sshCommand` where `$sshCommand` contains a sensitive env var  
-         Suggest building a secure command that avoids echoing the value
-
+    Rules:
+    - Use PowerShell or Groovy syntax based on the input
+    - Avoid generic phrases — use valid alternatives
+    - Do not simply remove unless the line does nothing useful
     - Do NOT simply say "remove the line" unless it’s truly unnecessary
     - The suggestion should match the syntax of the source language (PowerShell or Groovy)
     - Use real command-line constructs where appropriate (e.g. `"Write-Host 'Done'"`)
