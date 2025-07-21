@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Live Stock Monitor</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      margin: 0;
+      padding: 20px;
+      background: #111;
+      color: white;
+    }
+
+    .controls {
+      display: flex;
+      gap: 15px;
+      margin-bottom: 20px;
+    }
+
+    select {
+      padding: 10px;
+      background: #222;
+      color: white;
+      border: 1px solid #333;
+      border-radius: 5px;
+    }
+
+    .stocks-container {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .stock {
+      border-radius: 10px;
+      padding: 10px;
+      text-align: center;
+      transition: all 0.3s ease;
+      min-width: 80px;
+      overflow: hidden;
+    }
+
+    .green {
+      background-color: #28a745;
+      color: white;
+    }
+
+    .red {
+      background-color: #dc3545;
+      color: white;
+    }
+  </style>
+</head>
+<body>
+
+  <h2>📈 Live Stock Monitor</h2>
+
+  <div class="controls">
+    <select id="marketSelect" onchange="renderStocks()">
+      <option value="usa">USA</option>
+      <option value="india">India</option>
+    </select>
+
+    <select id="categorySelect" onchange="renderStocks()">
+      <option value="largeCap">Large Cap</option>
+      <option value="midCap">Mid Cap</option>
+      <option value="smallCap">Small Cap</option>
+    </select>
+  </div>
+
+  <div id="stocks" class="stocks-container"></div>
+
+  <script>
+    // Generate mock stocks
+    function generateStocks(prefix, count) {
+      const stocks = [];
+      for (let i = 1; i <= count; i++) {
+        stocks.push({
+          symbol: `${prefix}${i}`,
+          name: `${prefix} Corp ${i}`,
+          change: (Math.random() * 6 - 3).toFixed(2) * 1 // % change -3 to +3
+        });
+      }
+      return stocks;
+    }
+
+    // Create stock data for each market
+    const stockData = {
+      usa: {
+        largeCap: generateStocks('US-LC', 20),
+        midCap: generateStocks('US-MC', 15),
+        smallCap: generateStocks('US-SC', 15)
+      },
+      india: {
+        largeCap: generateStocks('IN-LC', 20),
+        midCap: generateStocks('IN-MC', 15),
+        smallCap: generateStocks('IN-SC', 15)
+      }
+    };
+
+    function renderStocks() {
+      const market = document.getElementById('marketSelect').value;
+      const category = document.getElementById('categorySelect').value;
+      const container = document.getElementById('stocks');
+      container.innerHTML = '';
+
+      const stocks = stockData[market][category];
+
+      stocks.forEach(stock => {
+        const stockDiv = document.createElement('div');
+        const size = 80 + Math.max(0, stock.change) * 4;
+
+        stockDiv.className = `stock ${stock.change >= 0 ? 'green' : 'red'}`;
+        stockDiv.style.width = `${size}px`;
+        stockDiv.style.height = `${size}px`;
+        stockDiv.innerHTML = `
+          <strong>${stock.symbol}</strong><br>
+          ${stock.change > 0 ? '+' : ''}${stock.change}%
+        `;
+        container.appendChild(stockDiv);
+      });
+    }
+
+    // Simulate live updates every 10s
+    setInterval(() => {
+      Object.keys(stockData).forEach(market => {
+        Object.keys(stockData[market]).forEach(category => {
+          stockData[market][category].forEach(stock => {
+            stock.change = (Math.random() * 6 - 3).toFixed(2) * 1;
+          });
+        });
+      });
+      renderStocks();
+    }, 10000);
+
+    // Initial load
+    renderStocks();
+  </script>
+</body>
+</html>

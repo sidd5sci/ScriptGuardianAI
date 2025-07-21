@@ -37,6 +37,7 @@ from langchain_core.messages import (
 )
 from src.lm.utils.Ollama import OllamaChat
 from src.lm.utils.LMStudio import LMStudioChat
+from src.lm.utils.validator import ScriptFindingValidator as VF
 
 # ---------------------------------------------------------------------------
 # Back‑end & model configuration
@@ -126,11 +127,15 @@ class Guardian:
                 clean_findings.append(f)
 
         score = 10 - sum(1 for f in clean_findings if f["severity"].lower() == "error")
-        return {
+        response = {
             "script": "safe" if score == 10 else "vulnerable",
             "score": score,
             "findings": clean_findings
         }
+
+        diffs = VF.validate_from_strings(code, response)
+        print("Validation: ", diffs)
+        return response
     # ------------------------- analyse file ----------------------
     def analyse_code(self, code: str, scriptType: str) -> Dict[str, Any]:
         

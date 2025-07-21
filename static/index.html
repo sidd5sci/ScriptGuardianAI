@@ -21,18 +21,6 @@
     /* highlight colours */
     .line-error-decoration{background:rgba(255,85,85,.30)!important;}
     .line-warning-decoration{background:rgba(255,221,85,.35)!important;}
-
-
-
-    /* glyph icons */
-    /* .monaco-editor .glyph-margin.bulb-error:before,
-    .monaco-editor .glyph-margin.bulb-warning:before{
-      content:"💡";
-      font-size:14px;
-      line-height:14px;
-      position:absolute;
-      left:2px;top:2px;
-    } */
     .monaco-editor .glyph-margin.bulb-error:before{color:#e11d48;}
     .monaco-editor .glyph-margin.bulb-warning:before{color:#ca8a04;}
     /* tooltip */
@@ -49,6 +37,18 @@
     #sg-tooltip h4{margin:0 0 4px 0;font-weight:600}
     #sg-tooltip pre{background:#f3f4f6;padding:6px;border-radius:4px;margin:6px 0;font-size:12px;white-space:pre-wrap}
     #sg-tooltip .btn-apply{padding:4px 8px;background:#2563eb;color:#fff;border:none;border-radius:4px;font-size:12px;cursor:pointer}
+    /* pretty blue button used inside tooltip */
+    .apply-btn {
+      background: #2563eb;    /* tailwind blue-600 */
+      color: #fff;
+      padding: 6px 12px;
+      border: none;
+      border-radius: 4px;
+      font-size: 12px;
+      cursor: pointer;
+      transition: background .15s;
+    }
+    .apply-btn:hover { background:#1d4ed8; }  /* blue-700 */
 
 
 
@@ -122,30 +122,6 @@
       document.getElementById('themeIcon').textContent = isDark ? '🌞' : '🌜';
     }
 
-    // function highlightFindings(findings){
-    //   if(!editor) return;
-    //   findingsMap = {};
-    //   const decorations=findings.flatMap(f=>{
-    //     findingsMap[f.line]=f;
-    //     const glyphClass = f.severity.toLowerCase()==='error' ? 'bulb-error' : 'bulb-warning';
-    //     const lineClass  = f.severity.toLowerCase()==='error' ? 'line-error-decoration' : 'line-warning-decoration';
-    //     return [
-    //       {
-    //         range:new monaco.Range(f.line,1,f.line,1),
-    //         options:{ isWholeLine:true, className:lineClass,
-    //           hoverMessage:{value:`**${f.severity}**\n${f.reason}\n\n**Recommendation:** ${f.recommendation}`} }
-    //       },
-    //       {
-    //         range:new monaco.Range(f.line,1,f.line,1),
-    //         options:{ glyphMarginClassName:glyphClass,
-    //           glyphMarginHoverMessage:{value:'Click 💡 for details'} }
-    //       }
-    //     ];
-    //   });
-
-      
-    //   activeDecorations = editor.deltaDecorations(activeDecorations, decorations);
-    // }
 
     function highlightFindings(findings=[]){
       if(!editor) return;
@@ -185,17 +161,79 @@
     }
 
 
-    function showTooltip(x,y,f){
-      const box=document.getElementById('sg-tooltip');
-      box.innerHTML=`<h4>${f.severity} – line ${f.line}</h4>
-        <div>${f.reason}</div>
-        <div class='mt-2'><strong>Recommendation:</strong> ${f.recommendation}</div>
-        <pre>${f.code_suggestion}</pre>`;
-      box.style.left=x+8+'px'; box.style.top=y+8+'px';
-      box.style.display='block';
+    // function showTooltip(x,y,f){
+    //   const box=document.getElementById('sg-tooltip');
+    //   box.innerHTML=`<h4>${f.severity} – line ${f.line}</h4>
+    //     <div>${f.reason}</div>
+    //     <div class='mt-2'><strong>Recommendation:</strong> ${f.recommendation}</div>
+    //     <pre>${f.code_suggestion}</pre>
+    //     <button class="apply-btn"
+    //         onclick="applyFix(${f.line}, \`${f.code_suggestion.replace(/`/g, '\\`')}\`)">
+    //         Apply fix
+    //     </button>`;
+    //   box.style.left=x+8+'px'; box.style.top=y+8+'px';
+    //   box.style.display='block';
+    // }
+
+    /* Helper: safely escape <, > */
+    function escapeHtml(str) {
+      return str
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
     }
 
+    function showTooltip(x, y, f) {
+      const box = document.getElementById("sg-tooltip");
+
+      // Build tooltip content (excluding the button)
+      box.innerHTML = `
+        <h4>${f.severity} – line ${f.line}</h4>
+        <div>${escapeHtml(f.reason)}</div>
+        <div class="mt-2">
+          <strong>Recommendation:</strong> ${escapeHtml(f.recommendation)}
+        </div>
+        <pre>${escapeHtml(f.code_suggestion)}</pre>
+      `;
+
+      // Create Apply-fix button safely
+      const btn = document.createElement("button");
+      btn.className = "apply-btn";
+      btn.textContent = "Apply fix";
+      btn.addEventListener("click", () => applyFix(f.line, f.code_suggestion));
+      box.appendChild(btn);
+
+      // Position & show
+      box.style.left = x + 8 + "px";
+      box.style.top  = y + 8 + "px";
+      box.style.display = "block";
+    }
+
+
     function hideTooltip(){document.getElementById('sg-tooltip').style.display='none';}
+
+    function applyFix(lineNumber, newCode) {
+      if (!editor) return;
+
+      const model   = editor.getModel();
+      const current = model.getLineContent(lineNumber);
+      if (current.trim() === newCode.trim()) {   // already applied
+        hideTooltip();
+        return;
+      }
+
+      model.pushEditOperations(
+        [],
+        [{
+          range: new monaco.Range(lineNumber, 1, lineNumber, current.length + 1),
+          text : newCode
+        }],
+        () => null
+      );
+
+      hideTooltip();
+    }
+
 
     document.addEventListener('click', (e)=>{
       if(!e.target.closest('.monaco-editor')) hideTooltip();
