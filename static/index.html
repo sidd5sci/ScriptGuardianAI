@@ -160,21 +160,6 @@
       monaco.editor.setModelMarkers(editor.getModel(),'guardian',markers);
     }
 
-
-    // function showTooltip(x,y,f){
-    //   const box=document.getElementById('sg-tooltip');
-    //   box.innerHTML=`<h4>${f.severity} – line ${f.line}</h4>
-    //     <div>${f.reason}</div>
-    //     <div class='mt-2'><strong>Recommendation:</strong> ${f.recommendation}</div>
-    //     <pre>${f.code_suggestion}</pre>
-    //     <button class="apply-btn"
-    //         onclick="applyFix(${f.line}, \`${f.code_suggestion.replace(/`/g, '\\`')}\`)">
-    //         Apply fix
-    //     </button>`;
-    //   box.style.left=x+8+'px'; box.style.top=y+8+'px';
-    //   box.style.display='block';
-    // }
-
     /* Helper: safely escape <, > */
     function escapeHtml(str) {
       return str
@@ -248,7 +233,7 @@
       status.textContent = "⏳ Analyzing script...";
 
       try {
-        const res = await fetch("http://localhost:8080/simulate", {
+        const res = await fetch("http://localhost:8080/analyze", {
           method: "POST",
           headers: {
             "Content-Type": "application/json"

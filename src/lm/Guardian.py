@@ -104,13 +104,13 @@ class Guardian:
 
         if not raw_json:
             print(" ⚠️ Invalid JSON. Retrying with reformatting prompt...")
-            raw_json = self.reformat_invalid_json(response.content)
-        
-        if not raw_json:
-            return {"error": "LLM returned non-JSON format twice", "raw": raw_json}
+            #raw_json = self.reformat_invalid_json(response.content)
+
+        # if not raw_json:
+        #     return {"error": "LLM returned non-JSON format twice", "raw": raw_json}
 
         # print("DEBUG Response:", raw_json, type(raw_json))
-        
+        print("DEBUG Response:",response.content)
 
         findings = raw_json.get("findings", [])
         clean_findings = []

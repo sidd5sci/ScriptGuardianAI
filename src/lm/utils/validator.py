@@ -1,7 +1,10 @@
+import json
+from typing import Union
+
 class ScriptFindingValidator():  
     @staticmethod
-    def validate_from_strings(script_text: str,
-                              llm_json_text: str) -> list[dict]:
+    def validate_from_strings(script_text: str, 
+                          llm_json: Union[str, dict]) -> list[dict]:
         """
         Parameters
         ----------
@@ -15,7 +18,6 @@ class ScriptFindingValidator():
         List[dict]
             Same mismatch dicts as .validate() – empty list ⇒ all good.
         """
-
         def strip_markers(code: str) -> list[str]:
             lines = []
             for line in code.splitlines():
@@ -31,11 +33,15 @@ class ScriptFindingValidator():
         script_lines = strip_markers(script_text)
         total_lines  = len(script_lines)
 
-        try:
-            findings = json.loads(llm_json_text).get("findings", [])
-        except json.JSONDecodeError as exc:
-            raise ValueError("Invalid LLM JSON text") from exc
+        if isinstance(llm_json, dict):
+            data = llm_json
+        else:
+            try:
+                data = json.loads(llm_json)
+            except json.JSONDecodeError as exc:
+                raise ValueError("Invalid LLM JSON text") from exc
 
+        findings = data.get("findings", [])
         mismatches: list[dict] = []
         for f in findings:
             lineno = f.get("line")
