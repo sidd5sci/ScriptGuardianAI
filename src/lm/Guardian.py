@@ -42,7 +42,7 @@ from src.lm.utils.validator import ScriptFindingValidator as VF
 # ---------------------------------------------------------------------------
 # Back‑end & model configuration
 # ---------------------------------------------------------------------------
-BACKEND = os.getenv("LLM_BACKEND", "ollama").lower()  # "ollama" | "lmstudio"
+BACKEND = os.getenv("LLM_BACKEND", "lmstudio").lower()  # "ollama" | "lmstudio"
 
 DEFAULT_OLLAMA_MODEL = "hf.co/reedmayhew/gemma3-12B-claude-3.7-sonnet-reasoning-distilled:latest"
 DEFAULT_LMS_MODEL = "claude-3.7-sonnet-reasoning-gemma3-12b"
@@ -69,7 +69,7 @@ class Guardian:
             raise ValueError("backend must be 'ollama' or 'lmstudio'")
 
         # --- parser & prompt paths ---
-        self.prompt_ps1 = Path("src/lm/prompts/powershell/prompt_11.md")
+        self.prompt_ps1 = Path("src/lm/prompts/powershell/prompt_12.md")
         self.prompt_groovy = Path("src/lm/prompts/groovy/prompt_9.md")
 
         if not (self.prompt_ps1.is_file() and self.prompt_groovy.is_file()):

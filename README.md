@@ -29,13 +29,13 @@ eval "$(pyenv init -)"
 eval "$(pyenv virtualenv-init -)"
 
 
-pyenv install 3.10.13
-pyenv virtualenv 3.10.13 bee-env
+pyenv install 3.12.3
+pyenv virtualenv 3.12.3 guardian
 
 source ~/.zshrc
-pyenv activate bee-env
+pyenv activate guardian
 
-pip3 install -r requirements.txt
+pip install -r requirements.txt
 ```
 
 other way 

@@ -10,9 +10,9 @@ SECSCAN_T                temperature (float, default 0.0)
 
 Run
 ---
-python -m uvicorn main:app --reload --port 8080
+python -m uvicorn main:app --reload --port 8000
 
-$ uvicorn main:app --reload --port 8080
+$ uvicorn main:app --reload --port 8000
 $ uvicorn main:app --reload
 """
 from __future__ import annotations
@@ -39,7 +39,7 @@ from src.lm.Guardian import Guardian  # noqa: E402  pylint: disable=wrong-import
 # ---------------------------------------------------------------------------
 # Guardian initialisation (done once at startup)
 # ---------------------------------------------------------------------------
-BACKEND = os.getenv("LLM_BACKEND", "ollama").lower()
+BACKEND = os.getenv("LLM_BACKEND", "lmstudio").lower()
 TEMPERATURE = float(os.getenv("SECSCAN_T", "0"))
 
 bee = Guardian(backend=BACKEND, temperature=TEMPERATURE)
