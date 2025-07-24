@@ -38,6 +38,7 @@ from langchain_core.messages import (
 from src.lm.utils.Ollama import OllamaChat
 from src.lm.utils.LMStudio import LMStudioChat
 from src.lm.utils.validator import ScriptFindingValidator as VF
+import replicate
 
 # ---------------------------------------------------------------------------
 # Back‑end & model configuration
@@ -69,7 +70,7 @@ class Guardian:
             raise ValueError("backend must be 'ollama' or 'lmstudio'")
 
         # --- parser & prompt paths ---
-        self.prompt_ps1 = Path("src/lm/prompts/powershell/prompt_12.md")
+        self.prompt_ps1 = Path("src/lm/prompts/powershell/prompt_13.md")
         self.prompt_groovy = Path("src/lm/prompts/groovy/prompt_9.md")
 
         if not (self.prompt_ps1.is_file() and self.prompt_groovy.is_file()):
@@ -134,7 +135,13 @@ class Guardian:
         }
 
         diffs = VF.validate_from_strings(code, response)
-        print("Validation: ", diffs)
+        if diffs:
+            print("⚠️  mismatches -> trying realign")
+            response = VF.realign_findings(code, response)
+
+        # You can validate again or just print
+        # print("Validation (after realign):", VF.validate_from_strings(code, response))
+        
         return response
     # ------------------------- analyse file ----------------------
     def analyse_code(self, code: str, scriptType: str) -> Dict[str, Any]:
