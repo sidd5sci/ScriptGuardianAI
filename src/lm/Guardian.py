@@ -37,13 +37,14 @@ from langchain_core.messages import (
 )
 from src.lm.utils.Ollama import OllamaChat
 from src.lm.utils.LMStudio import LMStudioChat
+from src.lm.utils.CopilotChat import CopilotChat
 from src.lm.utils.validator import ScriptFindingValidator as VF
 import replicate
 
 # ---------------------------------------------------------------------------
 # Back‑end & model configuration
 # ---------------------------------------------------------------------------
-BACKEND = os.getenv("LLM_BACKEND", "lmstudio").lower()  # "ollama" | "lmstudio"
+BACKEND = os.getenv("LLM_BACKEND", "lmstudio").lower()  # "ollama" | "lmstudio" | api
 
 DEFAULT_OLLAMA_MODEL = "hf.co/reedmayhew/gemma3-12B-claude-3.7-sonnet-reasoning-distilled:latest"
 DEFAULT_LMS_MODEL = "claude-3.7-sonnet-reasoning-gemma3-12b"
@@ -66,12 +67,14 @@ class Guardian:
             self.llm = OllamaChat(model=OLLAMA_MODEL, temperature=temperature)
         elif backend == "lmstudio":
             self.llm = LMStudioChat(model=LMS_MODEL, temperature=temperature)
+        elif backend == 'api':
+            self.llm = CopilotChat(temperature=temperature)
         else:
             raise ValueError("backend must be 'ollama' or 'lmstudio'")
 
         # --- parser & prompt paths ---
         self.prompt_ps1 = Path("src/lm/prompts/powershell/prompt_13.md")
-        self.prompt_groovy = Path("src/lm/prompts/groovy/prompt_9.md")
+        self.prompt_groovy = Path("src/lm/prompts/groovy/prompt_10.md")
 
         if not (self.prompt_ps1.is_file() and self.prompt_groovy.is_file()):
             sys.exit("ERR: prompt files missing")
@@ -136,7 +139,7 @@ class Guardian:
 
         diffs = VF.validate_from_strings(code, response)
         if diffs:
-            print("⚠️  mismatches -> trying realign")
+            print("⚠️  mismatches -> trying realign:\n", diffs)
             response = VF.realign_findings(code, response)
 
         # You can validate again or just print
@@ -179,9 +182,9 @@ class Guardian:
                 continue
 
             # Select appropriate prompt
-            prompt = prompt_ps1
+            prompt = self.prompt_ps1
             if file.suffix.lower() == ".groovy":
-                prompt = prompt_groovy
+                prompt = self.prompt_groovy
             
             print("\nPrompt selected:", prompt)
             print(f"--- Analyzing: {file.name} ---")

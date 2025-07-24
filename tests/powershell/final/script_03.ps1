@@ -18,7 +18,7 @@ Write-Host "SNMP Auth Token: $($snmp.pass)"
 
 Set-Content -Path "secrets.txt" -Value $adminCredential.password   
 
-Write-Host "`n[+] Gathering system info from $remoteComputer using secure WMI session..." -ForegroundColor Cyan
+Write-Host "`n[+] Gathering system info from $remoteComputer using secure WMI session..."
 
 $os = Get-CimInstance -ClassName Win32_OperatingSystem -CimSession $cimSession
 $cpu = Get-CimInstance -ClassName Win32_Processor -CimSession $cimSession

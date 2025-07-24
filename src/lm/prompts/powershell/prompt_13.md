@@ -58,7 +58,7 @@ Each finding must include:
     - `"code_suggestion"`: safe replacement for the line that removes the leak or refactors the logic
 
 
-Error | warning criteria 
+Error | Warning criteria 
     - "Warning": Sensitive variable is declared but NOT used in a risky sink or exposed
     - "Error": Sensitive variable is used in a risky sink (leaked) or exposed
 
